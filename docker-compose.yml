@@ -1,0 +1,64 @@
+version: "3.9"
+
+services:
+  database:
+    image: postgres:15-alpine
+    container_name: database-postgres-gin
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    ports:
+      - "5433:5432"
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 5s
+      retries: 5
+
+  app:
+    build:
+      context:  ./PedidoCompras-api
+      dockerfile: Dockerfile
+    container_name: PedidoCompras-api
+    ports:
+      - "${PORT}:8080"
+    env_file:
+      - .env
+    environment:
+      - GIN_MODE=release
+      - DB_HOST=database
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: always
+    volumes:
+      - ./PedidoCompras-api/uploads:/app/uploads
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: PedidoCompras-web
+    ports:
+      - "80:80"
+    environment:
+      - REACT_APP_API_URL=http://api:8080   # para o código React saber onde chamar a API
+    depends_on:
+      - app
+    networks:
+      - app-network
+    restart: always
+
+volumes:
+  db-data:
+
+networks:
+  app-network:
+    driver: bridge

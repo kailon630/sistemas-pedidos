@@ -1,0 +1,16 @@
+# Node
+web/node_modules/
+web/dist/
+
+# Go
+**/*.exe
+**/*.out
+**/vendor/
+
+# Ambiente
+.env
+
+# OS & IDE
+.DS_Store
+.vscode/
+.idea/
