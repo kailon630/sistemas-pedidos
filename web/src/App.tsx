@@ -22,6 +22,7 @@ import ProductFormPage from './pages/ProductFormPage' // Nova página de formul�
 import RequestsListPage from './pages/RequestListPage'
 import BudgetsPage from './pages/BudgetsPage';
 import RequestBudgetsPage from './pages/RequestBudgetsPage';
+import RequestReceiptsPage from './pages/RequestReceiptsPage';
 
 
 const App: React.FC = () => (
@@ -244,6 +245,18 @@ const App: React.FC = () => (
           <ProtectedRoute>
             <Layout>
               <RequestBudgetsPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Gerenciar recebimentos de uma requisição */}
+      <Route
+        path="/requests/:id/receipts"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <RequestReceiptsPage />
             </Layout>
           </ProtectedRoute>
         }

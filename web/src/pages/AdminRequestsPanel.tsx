@@ -12,10 +12,17 @@ import {
   Package,
   Filter,
   Download,
-  MessageSquare
+  MessageSquare,
+  RotateCcw
 } from 'lucide-react';
 import type { PurchaseRequest, RequestItem, ReviewRequestData, ReviewItemData } from '../types/admin';
-import { getPurchaseRequests, reviewRequest, reviewRequestItem } from '../api/admin';
+import {
+  getPurchaseRequests,
+  reviewRequest,
+  reviewRequestItem,
+  completeRequest,
+  reopenRequest,
+} from '../api/admin';
 
 const AdminRequestsPanel: React.FC = () => {
   const [requests, setRequests] = useState<PurchaseRequest[]>([]);
@@ -71,12 +78,42 @@ const AdminRequestsPanel: React.FC = () => {
     }
   };
 
+  const handleCompleteRequest = async (requestId: number) => {
+    const notes = window.prompt('Observações da conclusão (opcional)') || undefined;
+    try {
+      const response = await completeRequest(requestId, notes);
+      setRequests(prev => prev.map(req =>
+        req.ID === requestId ? response.data : req
+      ));
+      if (selectedRequest?.ID === requestId) {
+        setSelectedRequest(response.data);
+      }
+    } catch (error) {
+      console.error('Erro ao concluir requisição:', error);
+    }
+  };
+
+  const handleReopenRequest = async (requestId: number) => {
+    try {
+      const response = await reopenRequest(requestId);
+      setRequests(prev => prev.map(req =>
+        req.ID === requestId ? response.data : req
+      ));
+      if (selectedRequest?.ID === requestId) {
+        setSelectedRequest(response.data);
+      }
+    } catch (error) {
+      console.error('Erro ao reabrir requisição:', error);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'text-yellow-600 bg-yellow-100';
       case 'approved': return 'text-green-600 bg-green-100';
       case 'partial': return 'text-purple-600 bg-purple-100';
       case 'rejected': return 'text-red-600 bg-red-100';
+      case 'completed': return 'text-blue-600 bg-blue-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
@@ -87,6 +124,7 @@ const AdminRequestsPanel: React.FC = () => {
       case 'approved': return <CheckCircle size={16} />;
       case 'partial': return <AlertCircle size={16} />;
       case 'rejected': return <XCircle size={16} />;
+      case 'completed': return <CheckCircle size={16} />;
       default: return <Clock size={16} />;
     }
   };
@@ -101,6 +139,7 @@ const AdminRequestsPanel: React.FC = () => {
       case 'approved': return 'Aprovado';
       case 'partial': return 'Parcial';
       case 'rejected': return 'Rejeitado';
+      case 'completed': return 'Concluído';
       default: return status;
     }
   };
@@ -332,27 +371,53 @@ const AdminRequestsPanel: React.FC = () => {
                 </div>
 
                 {/* Ações Administrativas */}
-                {selectedRequest.status === 'pending' && (
-                  <div className="border-t pt-6">
-                    <h3 className="text-sm font-medium text-gray-900 mb-3">Ações Administrativas</h3>
-                    <div className="flex space-x-3">
+                  {selectedRequest.status === 'pending' && (
+                    <div className="border-t pt-6">
+                      <h3 className="text-sm font-medium text-gray-900 mb-3">Ações Administrativas</h3>
+                      <div className="flex space-x-3">
+                        <button
+                          onClick={() => handleReviewRequest(selectedRequest.ID, { status: 'approved' })}
+                          className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center"
+                        >
+                          <CheckCircle size={16} className="mr-2" />
+                          Aprovar Tudo
+                        </button>
+                        <button
+                          onClick={() => handleReviewRequest(selectedRequest.ID, { status: 'rejected' })}
+                          className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center justify-center"
+                        >
+                          <XCircle size={16} className="mr-2" />
+                          Rejeitar Tudo
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {(selectedRequest.status === 'approved' || selectedRequest.status === 'partial') && (
+                    <div className="border-t pt-6">
+                      <h3 className="text-sm font-medium text-gray-900 mb-3">Concluir Requisição</h3>
                       <button
-                        onClick={() => handleReviewRequest(selectedRequest.ID, { status: 'approved' })}
-                        className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center"
+                        onClick={() => handleCompleteRequest(selectedRequest.ID)}
+                        className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center"
                       >
                         <CheckCircle size={16} className="mr-2" />
-                        Aprovar Tudo
-                      </button>
-                      <button
-                        onClick={() => handleReviewRequest(selectedRequest.ID, { status: 'rejected' })}
-                        className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center justify-center"
-                      >
-                        <XCircle size={16} className="mr-2" />
-                        Rejeitar Tudo
+                        Concluir
                       </button>
                     </div>
-                  </div>
-                )}
+                  )}
+
+                  {selectedRequest.status === 'completed' && (
+                    <div className="border-t pt-6">
+                      <h3 className="text-sm font-medium text-gray-900 mb-3">Requisição Concluída</h3>
+                      <button
+                        onClick={() => handleReopenRequest(selectedRequest.ID)}
+                        className="w-full bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 flex items-center justify-center"
+                      >
+                        <RotateCcw size={16} className="mr-2" />
+                        Reabrir
+                      </button>
+                    </div>
+                  )}
               </div>
             </div>
           ) : (
