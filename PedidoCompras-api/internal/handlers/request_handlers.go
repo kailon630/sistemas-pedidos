@@ -496,3 +496,132 @@ func CreateRequester(databaseConnection *gorm.DB) gin.HandlerFunc {
 		})
 	}
 }
+
+// CompleteRequest marca uma requisição como concluída
+func CompleteRequest(databaseConnection *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Apenas admin pode concluir requisições
+		if c.GetString("role") != "admin" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Acesso restrito a administradores"})
+			return
+		}
+
+		requestID := c.Param("id")
+		userID := c.GetString("userID")
+
+		type completeInput struct {
+			CompletionNotes string `json:"completionNotes"`
+		}
+
+		var input completeInput
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		var requisicao models.PurchaseRequest
+		if err := databaseConnection.First(&requisicao, requestID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Requisição não encontrada"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar requisição"})
+			}
+			return
+		}
+
+		// Verifica se pode ser concluída
+		if !requisicao.CanBeCompleted() {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Requisição deve estar aprovada ou parcialmente aprovada para ser concluída",
+			})
+			return
+		}
+
+		// Marca como concluída
+		requisicao.Status = models.StatusCompleted
+		requisicao.CompletionNotes = input.CompletionNotes
+		now := time.Now()
+		requisicao.CompletedAt = &now
+
+		completedBy, _ := strconv.ParseUint(userID, 10, 64)
+		completedByUint := uint(completedBy)
+		requisicao.CompletedBy = &completedByUint
+
+		if err := databaseConnection.Save(&requisicao).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao concluir requisição"})
+			return
+		}
+
+		// Carrega requisição completa
+		if err := databaseConnection.Preload("Requester").
+			Preload("Sector").
+			Preload("Items.Product").
+			First(&requisicao, requestID).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao carregar requisição"})
+			return
+		}
+
+		c.JSON(http.StatusOK, requisicao)
+
+		notifications.Publish(
+			fmt.Sprintf("complete-request:%d", requisicao.ID),
+		)
+	}
+}
+
+// ReopenRequest reabre uma requisição concluída
+func ReopenRequest(databaseConnection *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Apenas admin pode reabrir requisições
+		if c.GetString("role") != "admin" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Acesso restrito a administradores"})
+			return
+		}
+
+		requestID := c.Param("id")
+
+		var requisicao models.PurchaseRequest
+		if err := databaseConnection.First(&requisicao, requestID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Requisição não encontrada"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar requisição"})
+			}
+			return
+		}
+
+		// Verifica se pode ser reaberta
+		if !requisicao.CanBeReopened() {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Apenas requisições concluídas podem ser reabertas",
+			})
+			return
+		}
+
+		// Reabre a requisição
+		requisicao.Status = models.StatusApproved // ou StatusPartial dependendo dos itens
+		requisicao.CompletionNotes = ""
+		requisicao.CompletedAt = nil
+		requisicao.CompletedBy = nil
+
+		if err := databaseConnection.Save(&requisicao).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao reabrir requisição"})
+			return
+		}
+
+		// Carrega requisição completa
+		if err := databaseConnection.Preload("Requester").
+			Preload("Sector").
+			Preload("Items.Product").
+			First(&requisicao, requestID).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao carregar requisição"})
+			return
+		}
+
+		c.JSON(http.StatusOK, requisicao)
+
+		notifications.Publish(
+			fmt.Sprintf("reopen-request:%d", requisicao.ID),
+		)
+	}
+}

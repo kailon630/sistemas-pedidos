@@ -1,4 +1,4 @@
-// src/pages/AdminRequestsPanel.tsx
+// src/pages/AdminRequestsPanel.tsx - VERSÃO COMPLETA CORRIGIDA
 import React, { useState, useEffect } from 'react';
 import { 
   CheckCircle, 
@@ -39,10 +39,42 @@ const AdminRequestsPanel: React.FC = () => {
   const loadRequests = async () => {
     try {
       setLoading(true);
+      console.log('🔍 Carregando requisições...');
+      
       const response = await getPurchaseRequests();
-      setRequests(response.data);
+      console.log('📦 Resposta bruta da API:', response.data);
+      
+      // Verificar se os dados estão no formato esperado
+      if (Array.isArray(response.data)) {
+        const validRequests = response.data.filter(req => {
+          if (!req) {
+            console.warn('❌ Requisição nula encontrada');
+            return false;
+          }
+          
+          if (!req.requester) {
+            console.warn('❌ Requisição sem requester:', req);
+            return false;
+          }
+          
+          if (!req.sector) {
+            console.warn('❌ Requisição sem sector:', req);
+            return false;
+          }
+          
+          return true;
+        });
+        
+        console.log('✅ Requisições válidas:', validRequests.length);
+        setRequests(validRequests);
+      } else {
+        console.error('❌ Resposta não é um array:', response.data);
+        setRequests([]);
+      }
     } catch (error) {
-      console.error('Erro ao carregar requisições:', error);
+      console.error('❌ Erro ao carregar requisições:', error);
+      setRequests([]);
+      alert('Erro ao carregar requisições. Verifique o console para mais detalhes.');
     } finally {
       setLoading(false);
     }
@@ -50,60 +82,87 @@ const AdminRequestsPanel: React.FC = () => {
 
   const handleReviewRequest = async (requestId: number, data: ReviewRequestData) => {
     try {
+      console.log('🔍 Revisando requisição:', { requestId, data });
+      
       const response = await reviewRequest(requestId, data);
       setRequests(prev => prev.map(req => 
-        req.ID === requestId ? response.data : req
+        req?.ID === requestId ? response.data : req
       ));
+      
       if (selectedRequest?.ID === requestId) {
         setSelectedRequest(response.data);
       }
+      
+      console.log('✅ Requisição revisada com sucesso');
     } catch (error) {
-      console.error('Erro ao revisar requisição:', error);
+      console.error('❌ Erro ao revisar requisição:', error);
+      alert('Erro ao revisar requisição. Tente novamente.');
     }
   };
 
   const handleReviewItem = async (requestId: number, itemId: number, data: ReviewItemData) => {
     try {
+      console.log('🔍 Revisando item:', { requestId, itemId, data });
+      
       await reviewRequestItem(requestId, itemId, data);
       await loadRequests(); // Recarrega para atualizar status automático
+      
       if (selectedRequest) {
         // Atualiza a requisição selecionada
-        const updatedRequest = requests.find(r => r.ID === requestId);
-        if (updatedRequest) setSelectedRequest(updatedRequest);
+        const updatedRequest = requests.find(r => r?.ID === requestId);
+        if (updatedRequest) {
+          setSelectedRequest(updatedRequest);
+        }
       }
+      
       setShowReviewModal(false);
       setReviewingItem(null);
+      
+      console.log('✅ Item revisado com sucesso');
     } catch (error) {
-      console.error('Erro ao revisar item:', error);
+      console.error('❌ Erro ao revisar item:', error);
+      alert('Erro ao revisar item. Tente novamente.');
     }
   };
 
   const handleCompleteRequest = async (requestId: number) => {
-    const notes = window.prompt('Observações da conclusão (opcional)') || undefined;
     try {
+      const notes = window.prompt('Observações da conclusão (opcional)') || undefined;
+      console.log('🔍 Concluindo requisição:', { requestId, notes });
+      
       const response = await completeRequest(requestId, notes);
       setRequests(prev => prev.map(req =>
-        req.ID === requestId ? response.data : req
+        req?.ID === requestId ? response.data : req
       ));
+      
       if (selectedRequest?.ID === requestId) {
         setSelectedRequest(response.data);
       }
+      
+      console.log('✅ Requisição concluída com sucesso');
     } catch (error) {
-      console.error('Erro ao concluir requisição:', error);
+      console.error('❌ Erro ao concluir requisição:', error);
+      alert('Erro ao concluir requisição. Tente novamente.');
     }
   };
 
   const handleReopenRequest = async (requestId: number) => {
     try {
+      console.log('🔍 Reabrindo requisição:', requestId);
+      
       const response = await reopenRequest(requestId);
       setRequests(prev => prev.map(req =>
-        req.ID === requestId ? response.data : req
+        req?.ID === requestId ? response.data : req
       ));
+      
       if (selectedRequest?.ID === requestId) {
         setSelectedRequest(response.data);
       }
+      
+      console.log('✅ Requisição reaberta com sucesso');
     } catch (error) {
-      console.error('Erro ao reabrir requisição:', error);
+      console.error('❌ Erro ao reabrir requisição:', error);
+      alert('Erro ao reabrir requisição. Tente novamente.');
     }
   };
 
@@ -130,7 +189,7 @@ const AdminRequestsPanel: React.FC = () => {
   };
 
   const filteredRequests = requests.filter(req => 
-    filter === 'all' || req.status === filter
+    req && (filter === 'all' || req.status === filter)
   );
 
   const getStatusText = (status: string) => {
@@ -172,9 +231,9 @@ const AdminRequestsPanel: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
           { label: 'Total', count: requests.length, color: 'blue' },
-          { label: 'Pendentes', count: requests.filter(r => r.status === 'pending').length, color: 'yellow' },
-          { label: 'Aprovados', count: requests.filter(r => r.status === 'approved').length, color: 'green' },
-          { label: 'Rejeitados', count: requests.filter(r => r.status === 'rejected').length, color: 'red' },
+          { label: 'Pendentes', count: requests.filter(r => r?.status === 'pending').length, color: 'yellow' },
+          { label: 'Aprovados', count: requests.filter(r => r?.status === 'approved').length, color: 'green' },
+          { label: 'Rejeitados', count: requests.filter(r => r?.status === 'rejected').length, color: 'red' },
         ].map((stat) => (
           <div key={stat.label} className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
@@ -221,48 +280,55 @@ const AdminRequestsPanel: React.FC = () => {
             </h2>
           </div>
           <div className="divide-y max-h-96 overflow-y-auto">
-            {filteredRequests.map((request) => (
-              <div
-                key={request.ID}
-                className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
-                  selectedRequest?.ID === request.ID ? 'bg-blue-50 border-l-4 border-blue-500' : ''
-                }`}
-                onClick={() => setSelectedRequest(request)}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <span className="font-medium text-gray-900">#{request.ID}</span>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(request.status)}`}>
-                        {getStatusIcon(request.status)}
-                        <span className="ml-1">{getStatusText(request.status)}</span>
-                      </span>
+            {filteredRequests.length === 0 ? (
+              <div className="p-6 text-center text-gray-500">
+                <Package size={48} className="mx-auto mb-4 text-gray-300" />
+                <p>Nenhuma requisição encontrada</p>
+              </div>
+            ) : (
+              filteredRequests.map((request) => (
+                <div
+                  key={request.ID}
+                  className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
+                    selectedRequest?.ID === request.ID ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                  }`}
+                  onClick={() => setSelectedRequest(request)}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <span className="font-medium text-gray-900">#{request.ID}</span>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(request.status)}`}>
+                          {getStatusIcon(request.status)}
+                          <span className="ml-1">{getStatusText(request.status)}</span>
+                        </span>
+                      </div>
+                      <div className="space-y-1 text-sm text-gray-600">
+                        <div className="flex items-center">
+                          <User size={14} className="mr-2" />
+                          {request.requester?.name || 'Usuário não identificado'}
+                        </div>
+                        <div className="flex items-center">
+                          <Building size={14} className="mr-2" />
+                          {request.sector?.name || 'Setor não identificado'}
+                        </div>
+                        <div className="flex items-center">
+                          <Calendar size={14} className="mr-2" />
+                          {new Date(request.createdAt).toLocaleDateString('pt-BR')}
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-1 text-sm text-gray-600">
-                      <div className="flex items-center">
-                        <User size={14} className="mr-2" />
-                        {request.requester.name}
-                      </div>
-                      <div className="flex items-center">
-                        <Building size={14} className="mr-2" />
-                        {request.sector.name}
-                      </div>
-                      <div className="flex items-center">
-                        <Calendar size={14} className="mr-2" />
-                        {new Date(request.createdAt).toLocaleDateString('pt-BR')}
-                      </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-gray-900">{request.items?.length || 0} itens</p>
+                      <button className="mt-1 text-blue-600 hover:text-blue-700 text-sm">
+                        <Eye size={14} className="inline mr-1" />
+                        Ver detalhes
+                      </button>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">{request.items.length} itens</p>
-                    <button className="mt-1 text-blue-600 hover:text-blue-700 text-sm">
-                      <Eye size={14} className="inline mr-1" />
-                      Ver detalhes
-                    </button>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -294,15 +360,15 @@ const AdminRequestsPanel: React.FC = () => {
                   <div className="bg-gray-50 p-4 rounded-lg space-y-2">
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Nome:</span>
-                      <span className="text-sm font-medium">{selectedRequest.requester.name}</span>
+                      <span className="text-sm font-medium">{selectedRequest.requester?.name || 'N/A'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Email:</span>
-                      <span className="text-sm font-medium">{selectedRequest.requester.email}</span>
+                      <span className="text-sm font-medium">{selectedRequest.requester?.email || 'N/A'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Setor:</span>
-                      <span className="text-sm font-medium">{selectedRequest.sector.name}</span>
+                      <span className="text-sm font-medium">{selectedRequest.sector?.name || 'N/A'}</span>
                     </div>
                   </div>
                 </div>
@@ -320,17 +386,17 @@ const AdminRequestsPanel: React.FC = () => {
                 {/* Itens da Requisição */}
                 <div>
                   <h3 className="text-sm font-medium text-gray-900 mb-3">
-                    Itens ({selectedRequest.items.length})
+                    Itens ({selectedRequest.items?.length || 0})
                   </h3>
                   <div className="space-y-3">
-                    {selectedRequest.items.map((item) => (
+                    {(selectedRequest.items || []).map((item) => (
                       <div key={item.ID} className="border rounded-lg p-4">
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex-1">
-                            <h4 className="font-medium text-gray-900">{item.product.name}</h4>
-                            <p className="text-sm text-gray-600">{item.product.description}</p>
+                            <h4 className="font-medium text-gray-900">{item.product?.name || 'Produto não identificado'}</h4>
+                            <p className="text-sm text-gray-600">{item.product?.description || 'Sem descrição'}</p>
                             <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
-                              <span>Qtd: {item.quantity} {item.product.unit}</span>
+                              <span>Qtd: {item.quantity} {item.product?.unit || 'un'}</span>
                               {item.deadline && (
                                 <span>Prazo: {new Date(item.deadline).toLocaleDateString('pt-BR')}</span>
                               )}
@@ -371,53 +437,66 @@ const AdminRequestsPanel: React.FC = () => {
                 </div>
 
                 {/* Ações Administrativas */}
-                  {selectedRequest.status === 'pending' && (
-                    <div className="border-t pt-6">
-                      <h3 className="text-sm font-medium text-gray-900 mb-3">Ações Administrativas</h3>
-                      <div className="flex space-x-3">
-                        <button
-                          onClick={() => handleReviewRequest(selectedRequest.ID, { status: 'approved' })}
-                          className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center"
-                        >
-                          <CheckCircle size={16} className="mr-2" />
-                          Aprovar Tudo
-                        </button>
-                        <button
-                          onClick={() => handleReviewRequest(selectedRequest.ID, { status: 'rejected' })}
-                          className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center justify-center"
-                        >
-                          <XCircle size={16} className="mr-2" />
-                          Rejeitar Tudo
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {(selectedRequest.status === 'approved' || selectedRequest.status === 'partial') && (
-                    <div className="border-t pt-6">
-                      <h3 className="text-sm font-medium text-gray-900 mb-3">Concluir Requisição</h3>
+                {selectedRequest.status === 'pending' && (
+                  <div className="border-t pt-6">
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">Ações Administrativas</h3>
+                    <div className="flex space-x-3">
                       <button
-                        onClick={() => handleCompleteRequest(selectedRequest.ID)}
-                        className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center"
+                        onClick={() => handleReviewRequest(selectedRequest.ID, { status: 'approved' })}
+                        className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center"
                       >
                         <CheckCircle size={16} className="mr-2" />
-                        Concluir
+                        Aprovar Tudo
                       </button>
-                    </div>
-                  )}
-
-                  {selectedRequest.status === 'completed' && (
-                    <div className="border-t pt-6">
-                      <h3 className="text-sm font-medium text-gray-900 mb-3">Requisição Concluída</h3>
                       <button
-                        onClick={() => handleReopenRequest(selectedRequest.ID)}
-                        className="w-full bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 flex items-center justify-center"
+                        onClick={() => handleReviewRequest(selectedRequest.ID, { status: 'rejected' })}
+                        className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center justify-center"
                       >
-                        <RotateCcw size={16} className="mr-2" />
-                        Reabrir
+                        <XCircle size={16} className="mr-2" />
+                        Rejeitar Tudo
                       </button>
                     </div>
-                  )}
+                  </div>
+                )}
+
+                {(selectedRequest.status === 'approved' || selectedRequest.status === 'partial') && (
+                  <div className="border-t pt-6">
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">Concluir Requisição</h3>
+                    <button
+                      onClick={() => handleCompleteRequest(selectedRequest.ID)}
+                      className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center"
+                    >
+                      <CheckCircle size={16} className="mr-2" />
+                      Concluir
+                    </button>
+                  </div>
+                )}
+
+                {selectedRequest.status === 'completed' && (
+                  <div className="border-t pt-6">
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">Requisição Concluída</h3>
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                      <div className="flex items-center">
+                        <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                        <span className="text-sm text-green-800">
+                          Requisição concluída em {selectedRequest.completedAt ? new Date(selectedRequest.completedAt).toLocaleDateString('pt-BR') : 'N/A'}
+                        </span>
+                      </div>
+                      {selectedRequest.completionNotes && (
+                        <p className="text-sm text-green-700 mt-2">
+                          <strong>Observações:</strong> {selectedRequest.completionNotes}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => handleReopenRequest(selectedRequest.ID)}
+                      className="w-full bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 flex items-center justify-center"
+                    >
+                      <RotateCcw size={16} className="mr-2" />
+                      Reabrir
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -435,8 +514,8 @@ const AdminRequestsPanel: React.FC = () => {
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4">Revisar Item</h3>
             <div className="mb-4">
-              <h4 className="font-medium">{reviewingItem.product.name}</h4>
-              <p className="text-sm text-gray-600">Quantidade: {reviewingItem.quantity} {reviewingItem.product.unit}</p>
+              <h4 className="font-medium">{reviewingItem.product?.name || 'Produto não identificado'}</h4>
+              <p className="text-sm text-gray-600">Quantidade: {reviewingItem.quantity} {reviewingItem.product?.unit || 'un'}</p>
             </div>
             
             <form onSubmit={(e) => {

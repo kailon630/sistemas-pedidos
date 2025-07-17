@@ -80,6 +80,9 @@ func Setup(router *gin.Engine, databaseConnection *gorm.DB, appConfig *config.Co
 			requestsGroup.POST("/:id/items/:itemId/budgets", handlers.CreateItemBudget(databaseConnection))
 			requestsGroup.GET("/:id/budgets", handlers.ListRequestBudgets(databaseConnection))
 
+			requestsGroup.POST("/:id/complete", handlers.CompleteRequest(databaseConnection))
+			requestsGroup.POST("/:id/reopen", handlers.ReopenRequest(databaseConnection))
+
 			// Recebimentos gerais da requisição
 			receiptsGroup := requestsGroup.Group("/:id/receipts")
 			{
