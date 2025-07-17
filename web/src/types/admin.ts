@@ -47,11 +47,14 @@ export interface PurchaseRequest {
     ID: number;
     name: string;
   };
-  status: 'pending' | 'approved' | 'partial' | 'rejected';
+  status: 'pending' | 'approved' | 'partial' | 'rejected' | 'completed';
   observations?: string;
   adminNotes?: string;
   reviewedBy?: number;
   reviewedAt?: string;
+  completionNotes?: string;
+  completedBy?: number;
+  completedAt?: string;
   items: RequestItem[];
   createdAt: string;
   updatedAt: string;
