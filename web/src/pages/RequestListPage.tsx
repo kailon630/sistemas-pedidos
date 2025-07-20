@@ -125,7 +125,7 @@ const RequestsListPage: React.FC = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         {[
           { 
             label: 'Total', 
@@ -139,15 +139,21 @@ const RequestsListPage: React.FC = () => {
             color: 'yellow',
             icon: Clock
           },
-          { 
-            label: 'Aprovadas', 
-            count: requests.filter(r => r.status === 'approved').length, 
+          {
+            label: 'Aprovadas',
+            count: requests.filter(r => r.status === 'approved').length,
             color: 'green',
             icon: CheckCircle
           },
-          { 
-            label: 'Rejeitadas', 
-            count: requests.filter(r => r.status === 'rejected').length, 
+          {
+            label: 'Parciais',
+            count: requests.filter(r => r.status === 'partial').length,
+            color: 'purple',
+            icon: AlertCircle
+          },
+          {
+            label: 'Rejeitadas',
+            count: requests.filter(r => r.status === 'rejected').length,
             color: 'red',
             icon: XCircle
           }

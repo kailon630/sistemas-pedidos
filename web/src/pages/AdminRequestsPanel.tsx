@@ -228,11 +228,12 @@ const AdminRequestsPanel: React.FC = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         {[
           { label: 'Total', count: requests.length, color: 'blue' },
           { label: 'Pendentes', count: requests.filter(r => r?.status === 'pending').length, color: 'yellow' },
           { label: 'Aprovados', count: requests.filter(r => r?.status === 'approved').length, color: 'green' },
+          { label: 'Parciais', count: requests.filter(r => r?.status === 'partial').length, color: 'purple' },
           { label: 'Rejeitados', count: requests.filter(r => r?.status === 'rejected').length, color: 'red' },
         ].map((stat) => (
           <div key={stat.label} className="bg-white p-6 rounded-lg shadow-sm border">

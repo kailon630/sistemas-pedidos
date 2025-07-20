@@ -16,6 +16,7 @@ interface DashboardStats {
   total: number
   pending: number
   approved: number
+  partial: number
   rejected: number
 }
 
@@ -27,6 +28,7 @@ const Dashboard: React.FC = () => {
     total: 0,
     pending: 0,
     approved: 0,
+    partial: 0,
     rejected: 0
   })
 
@@ -49,13 +51,17 @@ const Dashboard: React.FC = () => {
             case 'aprovado':
               acc.approved++
               break
+            case 'partial':
+            case 'parcial':
+              acc.partial++
+              break
             case 'rejected':
             case 'rejeitado':
               acc.rejected++
               break
           }
           return acc
-        }, { total: 0, pending: 0, approved: 0, rejected: 0 })
+        }, { total: 0, pending: 0, approved: 0, partial: 0, rejected: 0 })
         
         setStats(statsCalc)
       } catch (error) {
@@ -76,6 +82,9 @@ const Dashboard: React.FC = () => {
       case 'approved':
       case 'aprovado':
         return 'bg-green-100 text-green-800'
+      case 'partial':
+      case 'parcial':
+        return 'bg-purple-100 text-purple-800'
       case 'rejected':
       case 'rejeitado':
         return 'bg-red-100 text-red-800'
@@ -92,6 +101,9 @@ const Dashboard: React.FC = () => {
       case 'approved':
       case 'aprovado':
         return <CheckCircle size={16} />
+      case 'partial':
+      case 'parcial':
+        return <AlertCircle size={16} />
       case 'rejected':
       case 'rejeitado':
         return <AlertCircle size={16} />
@@ -126,7 +138,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Cards de Estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center">
             <div className="p-2 bg-blue-100 rounded-md">
@@ -159,6 +171,18 @@ const Dashboard: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Aprovadas</p>
               <p className="text-2xl font-bold text-gray-900">{stats.approved}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <div className="p-2 bg-purple-100 rounded-md">
+              <AlertCircle className="h-6 w-6 text-purple-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Parciais</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.partial}</p>
             </div>
           </div>
         </div>
