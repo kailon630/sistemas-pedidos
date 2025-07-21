@@ -1,4 +1,3 @@
-// src/api/receipts.ts - API helpers for item receipts
 import api from './client';
 
 export interface ItemReceipt {
@@ -31,13 +30,14 @@ export interface ItemReceipt {
   rejectedQuantity: number;
 }
 
+// ✅ CORREÇÃO: Interface ajustada para datas em formato correto
 export interface CreateReceiptData {
   quantityReceived: number;
   invoiceNumber: string;
-  invoiceDate?: string;
+  invoiceDate?: string | null; // ISO string completa ou null
   lotNumber?: string;
-  expirationDate?: string;
-  supplierId?: number;
+  expirationDate?: string | null; // ISO string completa ou null
+  supplierId?: number | null;
   notes?: string;
   receiptCondition?: 'good' | 'damaged' | 'partial_damage';
   qualityChecked?: boolean;
@@ -55,11 +55,55 @@ export interface ReceivingStatus {
   lastReceivedAt?: string;
 }
 
+// ✅ FUNÇÃO AUXILIAR: Converter data do input para formato RFC3339
+const formatDateForBackend = (dateString: string | null): string | null => {
+  if (!dateString || dateString.trim() === '') {
+    return null;
+  }
+  
+  try {
+    // Se já está no formato ISO completo, retorna como está
+    if (dateString.includes('T')) {
+      return dateString;
+    }
+    
+    // Se está no formato YYYY-MM-DD (input date), converte para ISO
+    const date = new Date(dateString + 'T00:00:00.000Z');
+    return date.toISOString();
+  } catch (error) {
+    console.error('❌ Erro ao formatar data:', dateString, error);
+    return null;
+  }
+};
+
 export const createReceipt = (
   requestId: number,
   itemId: number,
   data: CreateReceiptData
-) => api.post<ItemReceipt>(`/requests/${requestId}/items/${itemId}/receipts`, data);
+) => {
+  // ✅ CORREÇÃO PRINCIPAL: Formatar datas corretamente para o backend
+  const cleanData = {
+    quantityReceived: Number(data.quantityReceived),
+    invoiceNumber: data.invoiceNumber.trim(),
+    invoiceDate: formatDateForBackend(data.invoiceDate ?? null), // ✅ Formato RFC3339
+    lotNumber: data.lotNumber?.trim() || "",
+    expirationDate: formatDateForBackend(data.expirationDate ?? null), // ✅ Formato RFC3339
+    supplierId: data.supplierId || null,
+    notes: data.notes?.trim() || "",
+    receiptCondition: data.receiptCondition || "good",
+    qualityChecked: Boolean(data.qualityChecked),
+    qualityNotes: data.qualityNotes?.trim() || "",
+    rejectedQuantity: Number(data.rejectedQuantity) || 0
+  };
+
+  console.log('📤 Dados formatados para backend:', cleanData);
+  console.log('📅 Datas formatadas:', {
+    invoiceDate: cleanData.invoiceDate,
+    expirationDate: cleanData.expirationDate
+  });
+  
+  return api.post<ItemReceipt>(`/requests/${requestId}/items/${itemId}/receipts`, cleanData);
+};
 
 export const listItemReceipts = (
   requestId: number,

@@ -50,7 +50,7 @@ export interface RawPurchaseRequest {
   Requester: RawUser
   SectorID: number
   Sector: RawSector
-  Status: 'pending' | 'approved' | 'partial' | 'rejected'
+  Status: 'pending' | 'approved' | 'completed' | 'partial' | 'rejected'
   Observations?: string
   AdminNotes?: string
   ReviewedBy?: number
@@ -92,7 +92,7 @@ export interface PurchaseRequest {
     id: number
     name: string
   }
-  status: 'pending' | 'approved' | 'partial' | 'rejected'
+  status: 'pending' | 'approved' | 'completed' | 'partial' | 'rejected'
   observations?: string
   adminNotes?: string
   reviewedBy?: number

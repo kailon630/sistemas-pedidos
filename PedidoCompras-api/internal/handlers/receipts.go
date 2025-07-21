@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -30,10 +31,19 @@ type createReceiptInput struct {
 }
 
 // CreateReceipt registra o recebimento de um item
+// CreateReceipt registra o recebimento de um item
 func CreateReceipt(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// 🔍 DEBUG: Log da requisição
+		fmt.Printf("🔍 DEBUG CreateReceipt:\n")
+		fmt.Printf("  - Method: %s\n", c.Request.Method)
+		fmt.Printf("  - URL: %s\n", c.Request.URL.Path)
+		fmt.Printf("  - User Role: %s\n", c.GetString("role"))
+		fmt.Printf("  - User ID: %s\n", c.GetString("userID"))
+
 		// Apenas admin pode registrar recebimentos
 		if c.GetString("role") != "admin" {
+			fmt.Printf("  - ❌ Acesso negado: usuário não é admin\n")
 			c.JSON(http.StatusForbidden, gin.H{"error": "Acesso restrito a administradores"})
 			return
 		}
@@ -41,11 +51,17 @@ func CreateReceipt(db *gorm.DB) gin.HandlerFunc {
 		itemID := c.Param("itemId")
 		userID := c.GetString("userID")
 
+		fmt.Printf("  - ItemID: %s\n", itemID)
+		fmt.Printf("  - UserID: %s\n", userID)
+
 		var input createReceiptInput
 		if err := c.ShouldBindJSON(&input); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			fmt.Printf("  - ❌ Erro no binding JSON: %v\n", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos: " + err.Error()})
 			return
 		}
+
+		fmt.Printf("  - ✅ Input recebido: %+v\n", input)
 
 		// Busca o item com a requisição
 		var item models.RequestItem
@@ -58,10 +74,25 @@ func CreateReceipt(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// Verifica se a requisição está aprovada ou parcialmente aprovada
-		if item.PurchaseRequest.Status != "approved" && item.PurchaseRequest.Status != "partial" {
+		// ✅ Validação de status permitido para recebimentos
+		allowedStatuses := []string{"approved", "partial", "completed"}
+		requestStatus := item.PurchaseRequest.Status
+		isAllowed := false
+
+		for _, status := range allowedStatuses {
+			if requestStatus == status {
+				isAllowed = true
+				break
+			}
+		}
+
+		if !isAllowed {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Só é possível receber itens de requisições aprovadas",
+				"error": fmt.Sprintf(
+					"Não é possível receber itens de requisições com status '%s'. Status permitidos: %s",
+					requestStatus,
+					strings.Join(allowedStatuses, ", "),
+				),
 			})
 			return
 		}
