@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"fmt"
@@ -360,9 +361,22 @@ func ReviewRequestItem(db *gorm.DB) gin.HandlerFunc {
 
 		itemID := c.Param("itemId")
 
+		// ✅ NOVO INPUT COM STATUS SUSPENSO E MOTIVO
+		type reviewItemInput struct {
+			Status           string `json:"status" binding:"required,oneof=approved rejected suspended"`
+			AdminNotes       string `json:"adminNotes"`
+			SuspensionReason string `json:"suspensionReason"` // ✅ NOVO CAMPO
+		}
+
 		var input reviewItemInput
 		if err := c.ShouldBindJSON(&input); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		// ✅ VALIDAÇÃO: Se status é suspenso, motivo é obrigatório
+		if input.Status == "suspended" && strings.TrimSpace(input.SuspensionReason) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Motivo da suspensão é obrigatório"})
 			return
 		}
 
@@ -380,33 +394,54 @@ func ReviewRequestItem(db *gorm.DB) gin.HandlerFunc {
 		item.Status = input.Status
 		item.AdminNotes = input.AdminNotes
 
+		// ✅ NOVO: Atualizar motivo de suspensão
+		if input.Status == "suspended" {
+			item.SuspensionReason = input.SuspensionReason
+		} else {
+			item.SuspensionReason = "" // Limpar se não for suspenso
+		}
+
 		if err := db.Save(&item).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar item"})
 			return
 		}
 
-		// Verifica se deve atualizar status da requisição para "partial"
-		var totalItems, approvedItems int64
+		// ✅ NOVA LÓGICA: Calcular status da requisição baseado em TODOS os itens
+		var totalItems, approvedItems, rejectedItems, suspendedItems, pendingItems int64
+
 		db.Model(&models.RequestItem{}).Where("purchase_request_id = ?", item.PurchaseRequestID).Count(&totalItems)
 		db.Model(&models.RequestItem{}).Where("purchase_request_id = ? AND status = ?", item.PurchaseRequestID, "approved").Count(&approvedItems)
+		db.Model(&models.RequestItem{}).Where("purchase_request_id = ? AND status = ?", item.PurchaseRequestID, "rejected").Count(&rejectedItems)
+		db.Model(&models.RequestItem{}).Where("purchase_request_id = ? AND status = ?", item.PurchaseRequestID, "suspended").Count(&suspendedItems)
+		db.Model(&models.RequestItem{}).Where("purchase_request_id = ? AND status = ?", item.PurchaseRequestID, "pending").Count(&pendingItems)
 
-		// Atualiza status da requisição baseado nos itens
+		// ✅ NOVA LÓGICA DE STATUS DA REQUISIÇÃO
 		var requisicao models.PurchaseRequest
 		if err := db.First(&requisicao, item.PurchaseRequestID).Error; err == nil {
-			if approvedItems == 0 {
-				// Nenhum item aprovado - mantém pending ou muda para rejected
-				var rejectedItems int64
-				db.Model(&models.RequestItem{}).Where("purchase_request_id = ? AND status = ?", item.PurchaseRequestID, "rejected").Count(&rejectedItems)
-				if rejectedItems == totalItems {
-					requisicao.Status = "rejected"
-				}
-			} else if approvedItems == totalItems {
-				// Todos aprovados
-				requisicao.Status = "approved"
+			newStatus := requisicao.Status // manter atual como padrão
+
+			// Se ainda tem itens pendentes, mantém pending
+			if pendingItems > 0 {
+				newStatus = "pending"
 			} else {
-				// Alguns aprovados, alguns não
-				requisicao.Status = "partial"
+				// Todos os itens foram revisados
+				if approvedItems == totalItems {
+					// ✅ TODOS APROVADOS = APROVADO
+					newStatus = "approved"
+				} else if rejectedItems == totalItems {
+					// ✅ TODOS REJEITADOS = REJEITADO
+					newStatus = "rejected"
+				} else {
+					// ✅ QUALQUER MISTURA = PARCIAL
+					// (aprovados + rejeitados, aprovados + suspensos, etc.)
+					newStatus = "partial"
+				}
 			}
+
+			fmt.Printf("📊 Status calculation - Total: %d, Approved: %d, Rejected: %d, Suspended: %d, Pending: %d -> %s\n",
+				totalItems, approvedItems, rejectedItems, suspendedItems, pendingItems, newStatus)
+
+			requisicao.Status = newStatus
 			db.Save(&requisicao)
 		}
 

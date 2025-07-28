@@ -1,5 +1,5 @@
 // src/api/admin.ts
-import type { PurchaseRequest, ReviewItemData, ReviewRequestData } from '../types/admin';
+import type { PurchaseRequest, ReviewItemData, ReviewRequestData, SetPriorityData } from '../types/admin';
 import api from './client';
 
 // Interfaces para dados brutos do backend (PascalCase)
@@ -36,6 +36,7 @@ interface RawRequestItem {
   Status: string;
   Deadline?: string;
   AdminNotes?: string;
+  SuspensionReason?: string;
   CreatedAt: string;
   UpdatedAt: string;
 }
@@ -57,6 +58,11 @@ interface RawPurchaseRequest {
   CompletionNotes?: string;
   CompletedBy?: number;
   CompletedAt?: string;
+  // ✅ ADICIONAR CAMPOS DE PRIORIDADE
+  Priority?: string;
+  PriorityBy?: number;
+  PriorityAt?: string;
+  PriorityNotes?: string;
   Items?: RawRequestItem[];
   CreatedAt: string;
   UpdatedAt: string;
@@ -81,14 +87,15 @@ function normalizeRequestItem(raw: RawRequestItem): PurchaseRequest['items'][0] 
         ID: raw.Product.Sector.ID,
         name: raw.Product.Sector.Name,
       },
-      status: normalizeStatus(raw.Product.Status), // ← Aqui você aplica a função
+      status: normalizeStatus(raw.Product.Status),
       createdAt: raw.CreatedAt,
       updatedAt: raw.UpdatedAt,
     },
     quantity: raw.Quantity,
-    status: raw.Status as 'pending' | 'approved' | 'rejected',
+    status: raw.Status as 'pending' | 'approved' | 'rejected' | 'suspended', // ✅ ADICIONAR 'suspended'
     deadline: raw.Deadline,
     adminNotes: raw.AdminNotes,
+    suspensionReason: raw.SuspensionReason, // ✅ NOVO CAMPO
     createdAt: raw.CreatedAt,
     updatedAt: raw.UpdatedAt,
   };
@@ -122,12 +129,18 @@ function normalizePurchaseRequest(raw: RawPurchaseRequest): PurchaseRequest {
     completionNotes: raw.CompletionNotes,
     completedBy: raw.CompletedBy,
     completedAt: raw.CompletedAt,
+    // ✅ ADICIONAR CAMPOS DE PRIORIDADE NA NORMALIZAÇÃO
+    priority: raw.Priority as 'urgent' | 'high' | 'normal' | 'low' | undefined,
+    priorityBy: raw.PriorityBy,
+    priorityAt: raw.PriorityAt,
+    priorityNotes: raw.PriorityNotes,
     items: raw.Items?.map(normalizeRequestItem) || [],
     createdAt: raw.CreatedAt,
     updatedAt: raw.UpdatedAt,
   };
 }
 
+// Requisições
 export const getPurchaseRequests = async () => {
   const response = await api.get<RawPurchaseRequest[]>('/requests');
   return {
@@ -178,6 +191,31 @@ export const completeRequest = async (id: number, completionNotes?: string) => {
 
 export const reopenRequest = async (id: number) => {
   const response = await api.post<RawPurchaseRequest>(`/requests/${id}/reopen`);
+  return {
+    ...response,
+    data: normalizePurchaseRequest(response.data),
+  };
+};
+
+// Priorizações
+export const setRequestPriority = async (id: number, data: SetPriorityData) => {
+  const response = await api.patch<RawPurchaseRequest>(`/requests/${id}/priority`, data);
+  return {
+    ...response,
+    data: normalizePurchaseRequest(response.data),
+  };
+};
+
+export const removeRequestPriority = async (id: number) => {
+  const response = await api.delete<RawPurchaseRequest>(`/requests/${id}/priority`);
+  return {
+    ...response,
+    data: normalizePurchaseRequest(response.data),
+  };
+};
+
+export const toggleUrgentPriority = async (id: number) => {
+  const response = await api.post<RawPurchaseRequest>(`/requests/${id}/toggle-urgent`);
   return {
     ...response,
     data: normalizePurchaseRequest(response.data),

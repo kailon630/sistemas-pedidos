@@ -19,9 +19,10 @@ export interface RequestItem {
   productId: number;
   product: Product;
   quantity: number;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'suspended';
   deadline?: string;
   adminNotes?: string;
+  suspensionReason?: string; // ✅ NOVO CAMPO
   createdAt: string;
   updatedAt: string;
 }
@@ -36,6 +37,15 @@ export interface User {
     ID: number;
     name: string;
   };
+}
+
+export type PriorityLevel = 'urgent' | 'high' | 'normal' | 'low';
+
+export interface PriorityInfo {
+  priority: PriorityLevel;
+  priorityBy?: number;
+  priorityAt?: string;
+  priorityNotes?: string;
 }
 
 export interface PurchaseRequest {
@@ -55,9 +65,19 @@ export interface PurchaseRequest {
   completionNotes?: string;
   completedBy?: number;
   completedAt?: string;
+  // ✅ NOVOS CAMPOS DE PRIORIDADE
+  priority?: PriorityLevel;
+  priorityBy?: number;
+  priorityAt?: string;
+  priorityNotes?: string;
   items: RequestItem[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SetPriorityData {
+  priority: PriorityLevel;
+  notes?: string;
 }
 
 export interface ReviewRequestData {
@@ -66,6 +86,7 @@ export interface ReviewRequestData {
 }
 
 export interface ReviewItemData {
-  status: 'approved' | 'rejected';
+  status: 'approved' | 'rejected' | 'suspended';
   adminNotes?: string;
+  suspensionReason?: string;
 }

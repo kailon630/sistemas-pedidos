@@ -1,9 +1,25 @@
 // src/pages/RequestDetailPage.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, FileText, Package, Calendar, Edit, User, Building, Clock, CheckCircle, XCircle, AlertCircle, Plus, DollarSign } from 'lucide-react';
+import {
+  ArrowLeft,
+  FileText,
+  Package,
+  Calendar,
+  Edit,
+  User,
+  Building,
+  Clock,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Plus,
+  DollarSign
+} from 'lucide-react';
 import api from '../api/client';
 import AttachmentsSection from '../components/AttachmentsSection';
+import PriorityButton from '../components/PriorityButton';
+import { AuthContext } from '../contexts/AuthContext';
 
 interface Item {
   ID: number;
@@ -21,12 +37,18 @@ interface Request {
   CreatedAt?: string;
   RequesterName?: string;
   SectorName?: string;
+  // adicione aqui se o seu Request já vier com priority ou algo assim
+  Priority?: string;
 }
 
 const RequestDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [data, setData] = useState<Request | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Contexto de autenticação
+  const { user } = useContext(AuthContext);
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
     loadRequest();
@@ -43,6 +65,11 @@ const RequestDetailPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Função para atualizar o estado local após mudança de prioridade (ou qualquer outro update)
+  const handleRequestUpdate = (updatedRequest: Partial<Request>) => {
+    setData(prev => prev ? { ...prev, ...updatedRequest } : null);
   };
 
   const getStatusColor = (status: string) => {
@@ -128,7 +155,7 @@ const RequestDetailPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header com Prioridade */}
       <div className="flex items-center space-x-4">
         <Link
           to="/requests"
@@ -160,10 +187,19 @@ const RequestDetailPage: React.FC = () => {
               </div>
             </div>
             
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(data.Status)}`}>
-              {getStatusIcon(data.Status)}
-              <span className="ml-2">{getStatusText(data.Status)}</span>
-            </span>
+            <div className="flex items-center space-x-3">
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(data.Status)}`}>
+                {getStatusIcon(data.Status)}
+                <span className="ml-2">{getStatusText(data.Status)}</span>
+              </span>
+              {/* ✅ CONTROLE DE PRIORIDADE */}
+              <PriorityButton
+                request={data as any}
+                onUpdate={handleRequestUpdate}
+                isAdmin={isAdmin}
+                showDropdown={true}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

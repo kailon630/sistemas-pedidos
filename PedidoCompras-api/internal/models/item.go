@@ -19,7 +19,10 @@ type RequestItem struct {
 	Product   Product `gorm:"foreignKey:ProductID"`
 
 	Quantity   int    `gorm:"not null"`
-	Status     string `gorm:"size:20;not null;default:'pending'"` // pending, approved, rejected
+	Status     string `gorm:"size:20;not null;default:'pending'"` // pending, approved, rejected, suspended ✅
 	Deadline   *time.Time
 	AdminNotes string `gorm:"type:text"` // observações do admin sobre este item específico
+
+	// ✅ NOVO CAMPO
+	SuspensionReason string `gorm:"type:text"` // motivo da suspensão (quando status = suspended)
 }

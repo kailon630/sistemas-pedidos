@@ -54,6 +54,11 @@ func Setup(router *gin.Engine, databaseConnection *gorm.DB, appConfig *config.Co
 			requestsGroup.PATCH("/:id/review", handlers.ReviewRequest(databaseConnection))
 			requestsGroup.PATCH("/:id/items/:itemId/review", handlers.ReviewRequestItem(databaseConnection))
 
+			// ✅ NOVAS ROTAS PARA PRIORIDADE
+			requestsGroup.PATCH("/:id/priority", handlers.SetRequestPriority(databaseConnection))
+			requestsGroup.DELETE("/:id/priority", handlers.RemoveRequestPriority(databaseConnection))
+			requestsGroup.POST("/:id/toggle-urgent", handlers.ToggleUrgentPriority(databaseConnection))
+
 			// Itens de cada requisição (incluindo recebimentos)
 			itemsGroup := requestsGroup.Group("/:id/items")
 			{
@@ -94,8 +99,6 @@ func Setup(router *gin.Engine, databaseConnection *gorm.DB, appConfig *config.Co
 		// Rotas fora de /requests
 
 		apiGroup.PATCH("/budgets/:budgetID", handlers.UpdateBudget(databaseConnection))
-
-		// ✅ ROTA DELETE (adicione esta linha se não existir)
 		apiGroup.DELETE("/budgets/:budgetID", handlers.DeleteBudget(databaseConnection))
 
 		// Setores (protegido)
@@ -153,5 +156,17 @@ func Setup(router *gin.Engine, databaseConnection *gorm.DB, appConfig *config.Co
 			middleware.AuthMiddleware(appConfig.JWTSecretKey),
 			handlers.DownloadReceiptInvoice(databaseConnection),
 		)
+
+		productRequestsGroup := apiGroup.Group("/product-requests")
+		productRequestsGroup.Use(middleware.AuthMiddleware(appConfig.JWTSecretKey))
+		{
+			productRequestsGroup.GET("", handlers.ListProductRegistrationRequests(databaseConnection))
+			productRequestsGroup.POST("", handlers.CreateProductRegistrationRequest(databaseConnection))
+			productRequestsGroup.GET("/stats", handlers.GetProductRegistrationStats(databaseConnection))
+			productRequestsGroup.GET("/:id", handlers.GetProductRegistrationRequest(databaseConnection))
+			productRequestsGroup.PATCH("/:id", handlers.UpdateProductRegistrationRequest(databaseConnection))
+			productRequestsGroup.DELETE("/:id", handlers.DeleteProductRegistrationRequest(databaseConnection))
+			productRequestsGroup.PATCH("/:id/process", handlers.ProcessProductRegistrationRequest(databaseConnection))
+		}
 	}
 }

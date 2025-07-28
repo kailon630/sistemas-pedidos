@@ -1,10 +1,11 @@
-// src/pages/AdminRequestsPanel.tsx - VERSÃO COMPLETA CORRIGIDA
-import React, { useState, useEffect } from 'react';
-import { 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
-  Eye, 
+// src/pages/AdminRequestsPanel.tsx
+import React, { useState, useEffect, useContext } from 'react';
+import {
+  CheckCircle,
+  XCircle,
+  Clock,
+  Eye,
+  AlertTriangle, // ✅ ÍCONE CORRETO PARA URGENTES
   AlertCircle,
   Calendar,
   User,
@@ -23,8 +24,14 @@ import {
   completeRequest,
   reopenRequest,
 } from '../api/admin';
+import PriorityButton from '../components/PriorityButton';
+import { AuthContext } from '../contexts/AuthContext';
+import ReviewItemModal from '../components/ReviewItemModal';
 
 const AdminRequestsPanel: React.FC = () => {
+  const { user } = useContext(AuthContext);
+  const isAdmin = user?.role === 'admin';
+
   const [requests, setRequests] = useState<PurchaseRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<PurchaseRequest | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,31 +47,27 @@ const AdminRequestsPanel: React.FC = () => {
     try {
       setLoading(true);
       console.log('🔍 Carregando requisições...');
-      
+
       const response = await getPurchaseRequests();
       console.log('📦 Resposta bruta da API:', response.data);
-      
-      // Verificar se os dados estão no formato esperado
+
       if (Array.isArray(response.data)) {
         const validRequests = response.data.filter(req => {
           if (!req) {
             console.warn('❌ Requisição nula encontrada');
             return false;
           }
-          
           if (!req.requester) {
             console.warn('❌ Requisição sem requester:', req);
             return false;
           }
-          
           if (!req.sector) {
             console.warn('❌ Requisição sem sector:', req);
             return false;
           }
-          
           return true;
         });
-        
+
         console.log('✅ Requisições válidas:', validRequests.length);
         setRequests(validRequests);
       } else {
@@ -83,16 +86,13 @@ const AdminRequestsPanel: React.FC = () => {
   const handleReviewRequest = async (requestId: number, data: ReviewRequestData) => {
     try {
       console.log('🔍 Revisando requisição:', { requestId, data });
-      
       const response = await reviewRequest(requestId, data);
-      setRequests(prev => prev.map(req => 
-        req?.ID === requestId ? response.data : req
-      ));
-      
+      setRequests(prev =>
+        prev.map(req => (req.ID === requestId ? response.data : req))
+      );
       if (selectedRequest?.ID === requestId) {
         setSelectedRequest(response.data);
       }
-      
       console.log('✅ Requisição revisada com sucesso');
     } catch (error) {
       console.error('❌ Erro ao revisar requisição:', error);
@@ -103,21 +103,14 @@ const AdminRequestsPanel: React.FC = () => {
   const handleReviewItem = async (requestId: number, itemId: number, data: ReviewItemData) => {
     try {
       console.log('🔍 Revisando item:', { requestId, itemId, data });
-      
       await reviewRequestItem(requestId, itemId, data);
-      await loadRequests(); // Recarrega para atualizar status automático
-      
+      await loadRequests();
       if (selectedRequest) {
-        // Atualiza a requisição selecionada
-        const updatedRequest = requests.find(r => r?.ID === requestId);
-        if (updatedRequest) {
-          setSelectedRequest(updatedRequest);
-        }
+        const updated = requests.find(r => r.ID === requestId);
+        if (updated) setSelectedRequest(updated);
       }
-      
       setShowReviewModal(false);
       setReviewingItem(null);
-      
       console.log('✅ Item revisado com sucesso');
     } catch (error) {
       console.error('❌ Erro ao revisar item:', error);
@@ -129,16 +122,13 @@ const AdminRequestsPanel: React.FC = () => {
     try {
       const notes = window.prompt('Observações da conclusão (opcional)') || undefined;
       console.log('🔍 Concluindo requisição:', { requestId, notes });
-      
       const response = await completeRequest(requestId, notes);
-      setRequests(prev => prev.map(req =>
-        req?.ID === requestId ? response.data : req
-      ));
-      
+      setRequests(prev =>
+        prev.map(req => (req.ID === requestId ? response.data : req))
+      );
       if (selectedRequest?.ID === requestId) {
         setSelectedRequest(response.data);
       }
-      
       console.log('✅ Requisição concluída com sucesso');
     } catch (error) {
       console.error('❌ Erro ao concluir requisição:', error);
@@ -149,16 +139,13 @@ const AdminRequestsPanel: React.FC = () => {
   const handleReopenRequest = async (requestId: number) => {
     try {
       console.log('🔍 Reabrindo requisição:', requestId);
-      
       const response = await reopenRequest(requestId);
-      setRequests(prev => prev.map(req =>
-        req?.ID === requestId ? response.data : req
-      ));
-      
+      setRequests(prev =>
+        prev.map(req => (req.ID === requestId ? response.data : req))
+      );
       if (selectedRequest?.ID === requestId) {
         setSelectedRequest(response.data);
       }
-      
       console.log('✅ Requisição reaberta com sucesso');
     } catch (error) {
       console.error('❌ Erro ao reabrir requisição:', error);
@@ -166,42 +153,54 @@ const AdminRequestsPanel: React.FC = () => {
     }
   };
 
+  const handleRequestUpdate = (updatedRequest: PurchaseRequest) => {
+    setRequests(prev =>
+      prev.map(req => (req.ID === updatedRequest.ID ? updatedRequest : req))
+    );
+    if (selectedRequest?.ID === updatedRequest.ID) {
+      setSelectedRequest(updatedRequest);
+    }
+  };
+
   const getStatusColor = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'pending': return 'text-yellow-600 bg-yellow-100';
       case 'approved': return 'text-green-600 bg-green-100';
       case 'partial': return 'text-purple-600 bg-purple-100';
       case 'rejected': return 'text-red-600 bg-red-100';
       case 'completed': return 'text-blue-600 bg-blue-100';
+      case 'suspended': return 'text-orange-600 bg-orange-100'; // ✅ NOVO
       default: return 'text-gray-600 bg-gray-100';
     }
   };
 
   const getStatusIcon = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'pending': return <Clock size={16} />;
       case 'approved': return <CheckCircle size={16} />;
       case 'partial': return <AlertCircle size={16} />;
       case 'rejected': return <XCircle size={16} />;
       case 'completed': return <CheckCircle size={16} />;
+      case 'suspended': return <AlertTriangle size={16} />; // ✅ NOVO
       default: return <Clock size={16} />;
     }
   };
 
-  const filteredRequests = requests.filter(req => 
-    req && (filter === 'all' || req.status === filter)
-  );
-
   const getStatusText = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'pending': return 'Pendente';
       case 'approved': return 'Aprovado';
       case 'partial': return 'Parcial';
       case 'rejected': return 'Rejeitado';
       case 'completed': return 'Concluído';
+      case 'suspended': return 'Suspenso'; // ✅ NOVO
       default: return status;
     }
   };
+
+  const filteredRequests = requests.filter(
+    req => req && (filter === 'all' || req.status === filter)
+  );
 
   if (loading) {
     return (
@@ -219,23 +218,22 @@ const AdminRequestsPanel: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Painel Administrativo</h1>
           <p className="text-gray-600">Gerencie e aprove requisições de compras</p>
         </div>
-        <div className="flex space-x-3">
-          <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            <Download size={16} className="mr-2" />
-            Exportar
-          </button>
-        </div>
+        <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          <Download size={16} className="mr-2" />
+          Exportar
+        </button>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         {[
-          { label: 'Total', count: requests.length, color: 'blue' },
-          { label: 'Pendentes', count: requests.filter(r => r?.status === 'pending').length, color: 'yellow' },
-          { label: 'Aprovados', count: requests.filter(r => r?.status === 'approved').length, color: 'green' },
-          { label: 'Parciais', count: requests.filter(r => r?.status === 'partial').length, color: 'purple' },
-          { label: 'Rejeitados', count: requests.filter(r => r?.status === 'rejected').length, color: 'red' },
-        ].map((stat) => (
+          { label: 'Total', count: requests.length, color: 'blue', icon: Package },
+          { label: 'Pendentes', count: requests.filter(r => r.status === 'pending').length, color: 'yellow', icon: Clock },
+          { label: 'Aprovados', count: requests.filter(r => r.status === 'approved').length, color: 'green', icon: CheckCircle },
+          { label: 'Parciais', count: requests.filter(r => r.status === 'partial').length, color: 'purple', icon: AlertCircle },
+          { label: 'Rejeitados', count: requests.filter(r => r.status === 'rejected').length, color: 'red', icon: XCircle },
+          { label: 'Urgentes', count: requests.filter(r => r.priority === 'urgent').length, color: 'red', icon: AlertTriangle },
+        ].map(stat => (
           <div key={stat.label} className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
@@ -243,7 +241,7 @@ const AdminRequestsPanel: React.FC = () => {
                 <p className="text-2xl font-bold text-gray-900">{stat.count}</p>
               </div>
               <div className={`p-3 rounded-full bg-${stat.color}-100`}>
-                <Package className={`h-6 w-6 text-${stat.color}-600`} />
+                <stat.icon className={`h-6 w-6 text-${stat.color}-600`} />
               </div>
             </div>
           </div>
@@ -255,7 +253,7 @@ const AdminRequestsPanel: React.FC = () => {
         <div className="flex items-center space-x-4">
           <Filter size={20} className="text-gray-500" />
           <div className="flex space-x-2">
-            {(['all', 'pending', 'approved', 'partial', 'rejected'] as const).map((status) => (
+            {(['all', 'pending', 'approved', 'partial', 'rejected'] as const).map(status => (
               <button
                 key={status}
                 onClick={() => setFilter(status)}
@@ -272,6 +270,7 @@ const AdminRequestsPanel: React.FC = () => {
         </div>
       </div>
 
+      {/* Requests List & Details */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Lista de Requisições */}
         <div className="bg-white rounded-lg shadow-sm border">
@@ -287,11 +286,15 @@ const AdminRequestsPanel: React.FC = () => {
                 <p>Nenhuma requisição encontrada</p>
               </div>
             ) : (
-              filteredRequests.map((request) => (
+              filteredRequests.map(request => (
                 <div
                   key={request.ID}
                   className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
                     selectedRequest?.ID === request.ID ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                  } ${
+                    request.priority === 'urgent'
+                      ? 'border-l-4 border-red-500 bg-red-50'
+                      : ''
                   }`}
                   onClick={() => setSelectedRequest(request)}
                 >
@@ -303,6 +306,13 @@ const AdminRequestsPanel: React.FC = () => {
                           {getStatusIcon(request.status)}
                           <span className="ml-1">{getStatusText(request.status)}</span>
                         </span>
+                        <PriorityButton
+                          request={request}
+                          onUpdate={handleRequestUpdate}
+                          isAdmin={isAdmin}
+                          size="small"
+                          showDropdown={false}
+                        />
                       </div>
                       <div className="space-y-1 text-sm text-gray-600">
                         <div className="flex items-center">
@@ -321,7 +331,7 @@ const AdminRequestsPanel: React.FC = () => {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-medium text-gray-900">{request.items?.length || 0} itens</p>
-                      <button className="mt-1 text-blue-600 hover:text-blue-700 text-sm">
+                      <button className="mt-1 text-blue-600 hover:text-blue-700 text-sm flex items-center justify-center">
                         <Eye size={14} className="inline mr-1" />
                         Ver detalhes
                       </button>
@@ -347,15 +357,23 @@ const AdminRequestsPanel: React.FC = () => {
                       Criada em {new Date(selectedRequest.createdAt).toLocaleDateString('pt-BR')}
                     </p>
                   </div>
-                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedRequest.status)}`}>
-                    {getStatusIcon(selectedRequest.status)}
-                    <span className="ml-2">{getStatusText(selectedRequest.status)}</span>
-                  </span>
+                  <div className="flex items-center space-x-3">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedRequest.status)}`}>
+                      {getStatusIcon(selectedRequest.status)}
+                      <span className="ml-2">{getStatusText(selectedRequest.status)}</span>
+                    </span>
+                    <PriorityButton
+                      request={selectedRequest}
+                      onUpdate={handleRequestUpdate}
+                      isAdmin={isAdmin}
+                      showDropdown={true}
+                    />
+                  </div>
                 </div>
               </div>
 
               <div className="p-6 space-y-6">
-                {/* Informações do Solicitante */}
+                {/* Solicitante */}
                 <div>
                   <h3 className="text-sm font-medium text-gray-900 mb-3">Informações do Solicitante</h3>
                   <div className="bg-gray-50 p-4 rounded-lg space-y-2">
@@ -384,13 +402,13 @@ const AdminRequestsPanel: React.FC = () => {
                   </div>
                 )}
 
-                {/* Itens da Requisição */}
+                {/* Itens */}
                 <div>
                   <h3 className="text-sm font-medium text-gray-900 mb-3">
                     Itens ({selectedRequest.items?.length || 0})
                   </h3>
                   <div className="space-y-3">
-                    {(selectedRequest.items || []).map((item) => (
+                    {(selectedRequest.items || []).map(item => (
                       <div key={item.ID} className="border rounded-lg p-4">
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex-1">
@@ -432,6 +450,18 @@ const AdminRequestsPanel: React.FC = () => {
                             </div>
                           </div>
                         )}
+                        {item.suspensionReason && (
+                          <div className="bg-orange-50 border-l-4 border-orange-400 p-3 mt-3">
+                            <div className="flex items-start">
+                              <AlertTriangle size={16} className="text-orange-400 mr-2 mt-0.5" />
+                              <div>
+                                <p className="text-sm font-medium text-orange-800">Motivo da Suspensão:</p>
+                                <p className="text-sm text-orange-700">{item.suspensionReason}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                       </div>
                     ))}
                   </div>
@@ -516,20 +546,20 @@ const AdminRequestsPanel: React.FC = () => {
             <h3 className="text-lg font-semibold mb-4">Revisar Item</h3>
             <div className="mb-4">
               <h4 className="font-medium">{reviewingItem.product?.name || 'Produto não identificado'}</h4>
-              <p className="text-sm text-gray-600">Quantidade: {reviewingItem.quantity} {reviewingItem.product?.unit || 'un'}</p>
+              <p className="text-sm text-gray-600">
+                Quantidade: {reviewingItem.quantity} {reviewingItem.product?.unit || 'un'}
+              </p>
             </div>
-            
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const formData = new FormData(e.currentTarget);
-              const status = formData.get('status') as 'approved' | 'rejected';
-              const adminNotes = formData.get('adminNotes') as string;
-              
-              handleReviewItem(selectedRequest!.ID, reviewingItem.ID, {
-                status,
-                adminNotes: adminNotes || undefined
-              });
-            }}>
+            <form onSubmit={e => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const status = fd.get('status') as 'approved' | 'rejected';
+                const adminNotes = fd.get('adminNotes') as string;
+                handleReviewItem(selectedRequest!.ID, reviewingItem.ID, {
+                  status,
+                  adminNotes: adminNotes || undefined
+                });
+              }}>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Decisão</label>
@@ -544,9 +574,21 @@ const AdminRequestsPanel: React.FC = () => {
                       <XCircle size={16} className="text-red-600 mr-2" />
                       Rejeitar
                     </label>
+                    <ReviewItemModal
+                      isOpen={showReviewModal}
+                      onClose={() => {
+                        setShowReviewModal(false);
+                        setReviewingItem(null);
+                      }}
+                      onSubmit={(data) => {
+                        console.log('📝 Dados do modal:', data);
+                        handleReviewItem(selectedRequest!.ID, reviewingItem.ID, data);
+                      }}
+                      item={reviewingItem}
+                      loading={loading}
+                    />
                   </div>
                 </div>
-                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Observações (opcional)
@@ -559,7 +601,6 @@ const AdminRequestsPanel: React.FC = () => {
                   />
                 </div>
               </div>
-              
               <div className="flex space-x-3 mt-6">
                 <button
                   type="button"

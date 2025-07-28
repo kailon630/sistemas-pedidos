@@ -23,6 +23,7 @@ import RequestsListPage from './pages/RequestListPage'
 import BudgetsPage from './pages/BudgetsPage';
 import RequestBudgetsPage from './pages/RequestBudgetsPage';
 import RequestReceiptsPage from './pages/RequestReceiptsPage';
+import PriorityDashboard from './pages/PriorityDashboard'
 
 
 const App: React.FC = () => (
@@ -259,6 +260,17 @@ const App: React.FC = () => (
               <RequestReceiptsPage />
             </Layout>
           </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/priorities"
+        element={
+          <AdminRoute>
+            <Layout>
+              <PriorityDashboard />
+            </Layout>
+          </AdminRoute>
         }
       />
 

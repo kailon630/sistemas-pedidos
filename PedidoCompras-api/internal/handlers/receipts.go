@@ -31,7 +31,6 @@ type createReceiptInput struct {
 }
 
 // CreateReceipt registra o recebimento de um item
-// CreateReceipt registra o recebimento de um item
 func CreateReceipt(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 🔍 DEBUG: Log da requisição
@@ -102,6 +101,23 @@ func CreateReceipt(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "Este item não foi aprovado para compra",
 			})
+			return
+		}
+
+		if item.Status != "approved" {
+			var statusMsg string
+			switch item.Status {
+			case "pending":
+				statusMsg = "Este item ainda não foi revisado"
+			case "rejected":
+				statusMsg = "Este item foi rejeitado"
+			case "suspended":
+				statusMsg = fmt.Sprintf("Este item está suspenso: %s", item.SuspensionReason)
+			default:
+				statusMsg = "Este item não está disponível para recebimento"
+			}
+
+			c.JSON(http.StatusBadRequest, gin.H{"error": statusMsg})
 			return
 		}
 
@@ -229,7 +245,7 @@ func GetReceivingStatus(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// Query otimizada para buscar status de recebimento
+		// Query otimizada para buscar status de recebimento APENAS de itens aprovados
 		var statuses []models.ReceivingStatus
 		err := db.Table("request_items ri").
 			Select(`

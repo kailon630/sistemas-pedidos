@@ -111,9 +111,18 @@ export const listItemReceipts = (
 ) => api.get<ItemReceipt[]>(`/requests/${requestId}/items/${itemId}/receipts`);
 
 export const getReceivingStatus = (requestId: number) =>
-  api.get<{ summary: { totalItems: number; completeItems: number; partialItems: number; pendingItems: number }; items: ReceivingStatus[] }>(
-    `/requests/${requestId}/receipts/status`
-  );
+  api.get<{ 
+    summary: { 
+      totalItems: number; 
+      completeItems: number; 
+      partialItems: number; 
+      pendingItems: number;
+      approvedItems: number; // ✅ NOVO: total de itens aprovados
+      suspendedItems: number; // ✅ NOVO: total de itens suspensos
+    }; 
+    items: ReceivingStatus[] 
+  }>(`/requests/${requestId}/receipts/status`);
+
 
 export const getRequestReceiptsSummary = (requestId: number) =>
   api.get(`/requests/${requestId}/receipts/summary`);
