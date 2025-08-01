@@ -1,21 +1,23 @@
-// src/pages/SupplierFormPage.tsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { Save, ArrowLeft, Truck, AlertCircle } from 'lucide-react';
+import { Save, ArrowLeft, Truck, AlertCircle, FileText } from 'lucide-react';
 import { getSupplier, createSupplier, updateSupplier } from '../api/supplier';
+import { formatCNPJ, isValidCNPJ } from '../utils/cnpjUtils';
 
-// Interface corrigida para corresponder ao backend Go
+// Interface para o formulário com CNPJ
 interface SupplierFormData {
   name: string;
+  cnpj: string;        // ✅ NOVO CAMPO
   contact: string;
   phone: string;
   email: string;
   observations: string;
 }
 
-// Interfaces para API calls (minúsculas para envio)
+// Interfaces para API calls
 interface CreateSupplierData {
   name: string;
+  cnpj: string;        // ✅ NOVO CAMPO
   contact: string;
   phone: string;
   email: string;
@@ -24,6 +26,7 @@ interface CreateSupplierData {
 
 interface UpdateSupplierData {
   name?: string;
+  cnpj?: string;       // ✅ NOVO CAMPO
   contact?: string;
   phone?: string;
   email?: string;
@@ -37,6 +40,7 @@ const SupplierFormPage: React.FC = () => {
 
   const [formData, setFormData] = useState<SupplierFormData>({
     name: '',
+    cnpj: '',           // ✅ NOVO CAMPO
     contact: '',
     phone: '',
     email: '',
@@ -61,6 +65,7 @@ const SupplierFormPage: React.FC = () => {
       
       setFormData({
         name: supplier.name || '',
+        cnpj: supplier.cnpj || '',        // ✅ CARREGAR CNPJ
         contact: supplier.contact || '',
         phone: supplier.phone || '',
         email: supplier.email || '',
@@ -78,18 +83,29 @@ const SupplierFormPage: React.FC = () => {
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
+    // Nome obrigatório
     if (!formData.name.trim()) {
       newErrors.name = 'Nome da empresa é obrigatório';
     }
 
+    // Contato obrigatório
     if (!formData.contact.trim()) {
       newErrors.contact = 'Nome do contato é obrigatório';
     }
 
+    // ✅ VALIDAÇÃO DE CNPJ
+    if (formData.cnpj.trim()) {
+      if (!isValidCNPJ(formData.cnpj)) {
+        newErrors.cnpj = 'CNPJ inválido';
+      }
+    }
+
+    // Validação de email
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Email deve ter um formato válido';
     }
 
+    // Validação de telefone
     if (formData.phone && !/^[\d\s\-\(\)\+]+$/.test(formData.phone)) {
       newErrors.phone = 'Telefone deve conter apenas números e caracteres válidos';
     }
@@ -111,6 +127,7 @@ const SupplierFormPage: React.FC = () => {
       if (isEditing) {
         const updateData: UpdateSupplierData = {
           name: formData.name.trim(),
+          cnpj: formData.cnpj.trim(),         // ✅ INCLUIR CNPJ
           contact: formData.contact.trim(),
           phone: formData.phone.trim(),
           email: formData.email.trim(),
@@ -121,6 +138,7 @@ const SupplierFormPage: React.FC = () => {
       } else {
         const createData: CreateSupplierData = {
           name: formData.name.trim(),
+          cnpj: formData.cnpj.trim(),         // ✅ INCLUIR CNPJ
           contact: formData.contact.trim(),
           phone: formData.phone.trim(),
           email: formData.email.trim(),
@@ -145,6 +163,11 @@ const SupplierFormPage: React.FC = () => {
   };
 
   const handleChange = (field: keyof SupplierFormData, value: string) => {
+    // ✅ FORMATAÇÃO AUTOMÁTICA DO CNPJ
+    if (field === 'cnpj') {
+      value = formatCNPJ(value);
+    }
+    
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -220,6 +243,37 @@ const SupplierFormPage: React.FC = () => {
                 <div className="flex items-center mt-1 text-sm text-red-600">
                   <AlertCircle size={14} className="mr-1" />
                   {errors.name}
+                </div>
+              )}
+            </div>
+
+            {/* ✅ CAMPO CNPJ */}
+            <div>
+              <label htmlFor="cnpj" className="block text-sm font-medium text-gray-700 mb-2">
+                <FileText size={16} className="inline mr-1" />
+                CNPJ
+              </label>
+              <input
+                type="text"
+                id="cnpj"
+                value={formData.cnpj}
+                onChange={(e) => handleChange('cnpj', e.target.value)}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  errors.cnpj ? 'border-red-500' : 'border-gray-300'
+                }`}
+                placeholder="00.000.000/0000-00"
+                maxLength={18} // Comprimento máximo com formatação
+              />
+              {errors.cnpj && (
+                <div className="flex items-center mt-1 text-sm text-red-600">
+                  <AlertCircle size={14} className="mr-1" />
+                  {errors.cnpj}
+                </div>
+              )}
+              {formData.cnpj && !errors.cnpj && isValidCNPJ(formData.cnpj) && (
+                <div className="flex items-center mt-1 text-sm text-green-600">
+                  <FileText size={14} className="mr-1" />
+                  CNPJ válido
                 </div>
               )}
             </div>
@@ -345,6 +399,7 @@ const SupplierFormPage: React.FC = () => {
             <p className="font-medium mb-1">Dicas para cadastro de fornecedores:</p>
             <ul className="list-disc list-inside space-y-1 text-blue-700">
               <li>Use o nome oficial da empresa</li>
+              <li>O CNPJ é opcional, mas recomendado para pessoa jurídica</li>
               <li>Adicione um contato principal para facilitar a comunicação</li>
               <li>Inclua informações relevantes nas observações</li>
               <li>Mantenha os dados sempre atualizados</li>

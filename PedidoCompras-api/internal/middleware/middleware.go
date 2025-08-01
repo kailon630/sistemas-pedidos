@@ -8,13 +8,17 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-// TokenClaims estende RegisteredClaims com o Role do usuário
+// TokenClaims estende RegisteredClaims com dados completos do usuário
 type TokenClaims struct {
-	Role string `json:"role"`
+	Role       string `json:"role"`
+	Name       string `json:"name"`       // ✅ ADICIONADO
+	Email      string `json:"email"`      // ✅ ADICIONADO
+	SectorID   uint   `json:"sectorId"`   // ✅ ADICIONADO
+	SectorName string `json:"sectorName"` // ✅ ADICIONADO
 	jwt.RegisteredClaims
 }
 
-// AuthMiddleware valida o Bearer token e injeta userID e role no contexto
+// AuthMiddleware valida o Bearer token e injeta dados completos no contexto
 func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 1) Header Authorization
@@ -50,8 +54,13 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
+		// ✅ INJETAR TODOS OS DADOS NO CONTEXTO
 		c.Set("userID", claims.Subject)
 		c.Set("role", claims.Role)
+		c.Set("userName", claims.Name)         // ✅ NOME
+		c.Set("userEmail", claims.Email)       // ✅ EMAIL
+		c.Set("sectorID", claims.SectorID)     // ✅ SETOR ID
+		c.Set("sectorName", claims.SectorName) // ✅ SETOR NOME
 
 		c.Next()
 	}

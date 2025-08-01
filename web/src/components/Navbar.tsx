@@ -1,8 +1,11 @@
 // src/components/Navbar.tsx
-import React, { useContext, useState } from 'react'
+import React, { useContext, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AuthContext } from '../contexts/AuthContext'
-import { Menu, X, Bell, Search, User, LogOut, Shield } from 'lucide-react'
+import { Menu, X, Search, User, LogOut, Shield } from 'lucide-react'
+import NotificationDropdown from './NotificationDropdown';
+import type { CompanySettings } from '../types/settings';
+import settingsApi from '../api/settings'
 
 interface NavbarProps {
   onToggleSidebar: () => void
@@ -13,6 +16,20 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
   const { user, logout } = useContext(AuthContext)
   const navigate = useNavigate()
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
+
+  useEffect(() => {
+    async function loadSettings() {
+      if (user?.role !== 'admin') return
+      try {
+        const response = await settingsApi.getCompanySettings()
+        setCompanySettings(response.data)
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    loadSettings()
+  }, [user])
 
   const handleLogout = () => {
     logout()
@@ -31,9 +48,21 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           
-          <Link to="/" className="text-xl font-bold text-gray-900">
-            PedidoCompras
-          </Link>
+          <Link to="/" className="flex items-center space-x-3">
+          {companySettings?.LogoPath ? (
+            <img 
+              src={settingsApi.getCompanyLogoUrl()} 
+              alt={companySettings.CompanyName}
+              className="h-8 w-auto"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          ) : null}
+          <span className="text-xl font-bold text-gray-900">
+            {companySettings?.CompanyName || 'PedidoCompras'}
+          </span>
+        </Link>
         </div>
 
         {/* Center - Search (opcional) */}
@@ -52,7 +81,7 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
         <div className="flex items-center space-x-4">
           {/* Notifications */}
           <button className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 relative">
-            <Bell size={20} />
+            <NotificationDropdown />
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
               3
             </span>

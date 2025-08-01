@@ -60,45 +60,59 @@ const CreateEditItemPage: React.FC = () => {
     loadInitialData();
   }, [requestId, itemId]);
 
-  const loadInitialData = async () => {
-    try {
-      setLoadingData(true);
-      
-      // Load request data
-      const requestRes = await getPurchaseRequest(Number(requestId));
-      setRequest(requestRes.data);
-
-      // Load products
-      const productsRes = await getProducts();
-      const available = productsRes.data.filter(p => p.Status === 'available');
-      setAvailableProducts(available);
-
-      // If editing, load current item data
-      if (isEditing && itemId) {
-        const itemsRes = await getRequestItems(Number(requestId));
-        const item = itemsRes.data.find((i: { id: number; }) => i.id === Number(itemId));
-        
-        if (item) {
-          setCurrentItem(item);
-          setFormData({
-            productId: item.productId,
-            quantity: item.quantity,
-            deadline: item.deadline ? new Date(item.deadline).toISOString().split('T')[0] : '',
-            adminNotes: item.adminNotes || ''
-          });
-        } else {
-          throw new Error('Item não encontrado');
-        }
-      }
-
-    } catch (error: any) {
-      console.error('Erro ao carregar dados:', error);
-      alert('Erro ao carregar dados. Redirecionando...');
-      navigate(`/requests/${requestId}`);
-    } finally {
-      setLoadingData(false);
-    }
+  const formatDateForAPI = (dateString: string): string => {
+    // se dateString for vazio, devolve string vazia ou outra data-padrão
+    if (!dateString) return '';
+    const date = new Date(dateString + 'T12:00:00.000Z');
+    return date.toISOString();
   };
+
+  // Função para converter data do formato RFC3339 para YYYY-MM-DD (para exibição)
+  const formatDateFromAPI = (dateString?: string): string => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toISOString().split('T')[0];
+  };
+
+  const loadInitialData = async () => {
+  try {
+    setLoadingData(true);
+    
+    // Load request data
+    const requestRes = await getPurchaseRequest(Number(requestId));
+    setRequest(requestRes.data);
+
+    // Load products
+    const productsRes = await getProducts();
+    const available = productsRes.data.filter(p => p.Status === 'available');
+    setAvailableProducts(available);
+
+    // If editing, load current item data
+    if (isEditing && itemId) {
+      const itemsRes = await getRequestItems(Number(requestId));
+      const item = itemsRes.data.find((i: { id: number; }) => i.id === Number(itemId));
+      
+      if (item) {
+        setCurrentItem(item);
+        setFormData({
+          productId: item.productId,
+          quantity: item.quantity,
+          deadline: formatDateFromAPI(item.deadline), // ✅ CONVERSÃO CORRETA
+          adminNotes: item.adminNotes || ''
+        });
+      } else {
+        throw new Error('Item não encontrado');
+      }
+    }
+
+  } catch (error: any) {
+    console.error('Erro ao carregar dados:', error);
+    alert('Erro ao carregar dados. Redirecionando...');
+    navigate(`/requests/${requestId}`);
+  } finally {
+    setLoadingData(false);
+  }
+};
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -160,14 +174,16 @@ const CreateEditItemPage: React.FC = () => {
     }
 
     try {
-      setLoading(true);
+        setLoading(true);
 
-      const payload = {
+        const payload: any = {
         productId: Number(formData.productId),
         quantity: formData.quantity,
-        deadline: formData.deadline || undefined,
         ...(isAdmin && { adminNotes: formData.adminNotes })
       };
+      if (formData.deadline) {
+        payload.deadline = formatDateForAPI(formData.deadline);
+      }
 
       if (isEditing) {
         await updateRequestItem(Number(requestId), Number(itemId), payload);

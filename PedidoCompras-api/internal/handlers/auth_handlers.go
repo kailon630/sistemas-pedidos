@@ -18,42 +18,52 @@ type loginInput struct {
 	Password string `json:"password" binding:"required"`
 }
 
-// MyClaims estende RegisteredClaims com o Role do usuário
+// MyClaims estende RegisteredClaims com dados completos do usuário
 type MyClaims struct {
-	Role string `json:"role"`
+	Role       string `json:"role"`
+	Name       string `json:"name"`       // ✅ ADICIONADO
+	Email      string `json:"email"`      // ✅ ADICIONADO
+	SectorID   uint   `json:"sectorId"`   // ✅ ADICIONADO
+	SectorName string `json:"sectorName"` // ✅ ADICIONADO
 	jwt.RegisteredClaims
 }
 
 func Login(databaseConnection *gorm.DB, appConfig *config.Config) gin.HandlerFunc {
 	return func(context *gin.Context) {
-		//recebe e valida JSON
+		// Recebe e valida JSON
 		var dados loginInput
 		if err := context.ShouldBindJSON(&dados); err != nil {
 			context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		//buscar usario por e-mail
+		// Buscar usuário por e-mail COM o setor carregado
 		var usuario models.User
 		resultado := databaseConnection.
+			Preload("Sector"). // ✅ CARREGAR SETOR
 			Where("email = ?", dados.Email).
 			First(&usuario)
 		if resultado.Error != nil {
-			context.JSON(http.StatusUnauthorized, gin.H{"error": "Credenicais invalidas"})
+			context.JSON(http.StatusUnauthorized, gin.H{"error": "Credenciais inválidas"})
 			return
 		}
 
-		//comparar hash da senha
+		// Comparar hash da senha
 		if err := bcrypt.CompareHashAndPassword(
 			[]byte(usuario.PasswordHash),
 			[]byte(dados.Password),
 		); err != nil {
-			context.JSON(http.StatusUnauthorized, gin.H{"error": "Crendencias invalidas"})
+			context.JSON(http.StatusUnauthorized, gin.H{"error": "Credenciais inválidas"})
 			return
 		}
-		//criar claims e token jwt
+
+		// ✅ CRIAR CLAIMS COM DADOS COMPLETOS
 		myClaims := MyClaims{
-			Role: usuario.Role,
+			Role:       usuario.Role,
+			Name:       usuario.Name,        // Nome do usuário
+			Email:      usuario.Email,       // Email do usuário
+			SectorID:   usuario.SectorID,    // ID do setor
+			SectorName: usuario.Sector.Name, // Nome do setor
 			RegisteredClaims: jwt.RegisteredClaims{
 				Subject:   strconv.FormatUint(uint64(usuario.ID), 10),
 				ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
@@ -68,7 +78,20 @@ func Login(databaseConnection *gorm.DB, appConfig *config.Config) gin.HandlerFun
 			return
 		}
 
-		// 5) devolve o token
-		context.JSON(http.StatusOK, gin.H{"token": tokenString})
+		// ✅ RETORNAR DADOS COMPLETOS DO USUÁRIO JUNTO COM O TOKEN
+		context.JSON(http.StatusOK, gin.H{
+			"token": tokenString,
+			"user": gin.H{
+				"id":       usuario.ID,
+				"name":     usuario.Name,
+				"email":    usuario.Email,
+				"role":     usuario.Role,
+				"sectorId": usuario.SectorID,
+				"sector": gin.H{
+					"ID":   usuario.Sector.ID,
+					"Name": usuario.Sector.Name,
+				},
+			},
+		})
 	}
 }

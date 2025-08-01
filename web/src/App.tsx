@@ -24,10 +24,18 @@ import BudgetsPage from './pages/BudgetsPage';
 import RequestBudgetsPage from './pages/RequestBudgetsPage';
 import RequestReceiptsPage from './pages/RequestReceiptsPage';
 import PriorityDashboard from './pages/PriorityDashboard'
-
+import ProductRegistrationFormPage from './pages/ProductRegistrationFormPage'
+import ProductRegistrationDetailPage from './pages/ProductRegistrationDetailPage'
+import ProductRegistrationListPage from './pages/ProductRegistrationListPage'
+import { NotificationProvider } from './contexts/NotificationContext'
+import NotificationSettingsPage from './pages/NotificationSettingsPage'
+import ProfilePage from './pages/ProfilePage'
+import SettingsPage from './pages/SettingsPage'
+import ReportsPage from './pages/ReportsPage'
 
 const App: React.FC = () => (
   <AuthProvider>
+    <NotificationProvider>
     <Routes>
       {/* rota pública */}
       <Route path="/login" element={<LoginPage />} />
@@ -276,7 +284,105 @@ const App: React.FC = () => (
 
       {/* catch-all: redireciona ao dashboard */}
       <Route path="*" element={<Navigate to="/" />} />
+       {/* Solicitações de Cadastro de Produtos */}
+      <Route
+        path="/product-requests"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <ProductRegistrationListPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/product-requests/new"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <ProductRegistrationFormPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/product-requests/:id"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <ProductRegistrationDetailPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/product-requests/:id/edit"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <ProductRegistrationFormPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      {/* Nova rota para configurações de notificações */}
+      <Route
+        path="/notifications/settings"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <NotificationSettingsPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <ProfilePage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      // E também para /settings (alias):
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <ProfilePage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/settings"
+        element={
+          <AdminRoute>
+            <Layout>
+              <SettingsPage />
+            </Layout>
+          </AdminRoute>
+        }
+      />
+
+      <Route
+        path="/reports"
+        element={
+          <AdminRoute>
+            <Layout>
+              <ReportsPage />
+            </Layout>
+          </AdminRoute>
+        }
+      />
+
     </Routes>
+    </NotificationProvider>
   </AuthProvider>
 )
 

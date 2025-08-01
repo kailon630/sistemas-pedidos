@@ -125,6 +125,7 @@ func Setup(router *gin.Engine, databaseConnection *gorm.DB, appConfig *config.Co
 		{
 			suppliersGroup.GET("", handlers.ListSuppliers(databaseConnection))
 			suppliersGroup.POST("", handlers.CreateSupplier(databaseConnection))
+			suppliersGroup.GET("/:id", handlers.GetSupplier(databaseConnection)) // ✅ ADICIONAR SE NÃO EXISTIR
 			suppliersGroup.PATCH("/:id", handlers.UpdateSupplier(databaseConnection))
 			suppliersGroup.DELETE("/:id", handlers.DeleteSupplier(databaseConnection))
 		}
@@ -168,5 +169,37 @@ func Setup(router *gin.Engine, databaseConnection *gorm.DB, appConfig *config.Co
 			productRequestsGroup.DELETE("/:id", handlers.DeleteProductRegistrationRequest(databaseConnection))
 			productRequestsGroup.PATCH("/:id/process", handlers.ProcessProductRegistrationRequest(databaseConnection))
 		}
+
+		profileGroup := apiGroup.Group("/profile")
+		profileGroup.Use(middleware.AuthMiddleware(appConfig.JWTSecretKey))
+		{
+			profileGroup.GET("", handlers.GetProfile(databaseConnection))
+			profileGroup.PUT("", handlers.UpdateProfile(databaseConnection))
+			profileGroup.PATCH("/password", handlers.ChangePassword(databaseConnection))
+		}
+
+		// Configurações (apenas admin)
+		settingsGroup := apiGroup.Group("/settings")
+		settingsGroup.Use(middleware.AuthMiddleware(appConfig.JWTSecretKey))
+		{
+			// Configurações da empresa
+			settingsGroup.GET("/company", handlers.GetCompanySettings(databaseConnection))
+			settingsGroup.PUT("/company", handlers.UpdateCompanySettings(databaseConnection))
+			settingsGroup.POST("/company/logo", handlers.UploadCompanyLogo(databaseConnection))
+			settingsGroup.GET("/company/logo", handlers.GetCompanyLogo(databaseConnection))
+
+			// Configurações do sistema
+			settingsGroup.GET("/system", handlers.GetSystemSettings(databaseConnection))
+			settingsGroup.PUT("/system", handlers.UpdateSystemSettings(databaseConnection))
+		}
+
+		// Relatórios (apenas admin)
+		reportsGroup := apiGroup.Group("/reports")
+		reportsGroup.Use(middleware.AuthMiddleware(appConfig.JWTSecretKey))
+		{
+			reportsGroup.GET("/requests", handlers.GetRequestsReport(databaseConnection))
+			reportsGroup.GET("/requests/export", handlers.ExportRequestsReport(databaseConnection))
+		}
+
 	}
 }

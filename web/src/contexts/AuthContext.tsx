@@ -1,4 +1,4 @@
-// src/contexts/AuthContext.tsx - VERSÃO FINAL LIMPA
+// src/contexts/AuthContext.tsx 
 import React, { createContext, useState, useEffect } from 'react'
 import api from '../api/client'
 
@@ -14,12 +14,29 @@ interface User {
   }
 }
 
+// ✅ INTERFACES PARA TIPAGEM DA RESPOSTA DA API
+interface LoginResponse {
+  token: string
+  user?: {
+    id: number
+    name: string
+    email: string
+    role: string
+    sectorId: number
+    sector: {
+      ID: number
+      Name: string
+    }
+  }
+}
+
 interface AuthContextType {
   isAuthenticated: boolean
   user: User | null
   login: (email: string, password: string) => Promise<void>
   logout: () => void
   loading: boolean
+  updateUser: (userData: Partial<User>) => void
 }
 
 export const AuthContext = createContext<AuthContextType>({} as AuthContextType)
@@ -96,8 +113,9 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
 
   const login = async (email: string, password: string) => {
     try {
-      const resp = await api.post('/auth/login', { email, password })
-      const token = resp.data.token || resp.data.accessToken || resp.data.access_token
+      // ✅ TIPAR A RESPOSTA DA API
+      const resp = await api.post<LoginResponse>('/auth/login', { email, password })
+      const token = resp.data.token
       
       if (!token) {
         throw new Error('Token não retornado pela API')
@@ -105,14 +123,31 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
       
       localStorage.setItem('accessToken', token)
       
-      const decodedToken = decodeJWT(token)
-      
-      if (decodedToken) {
-        const userData = createUserFromJWT(decodedToken, email)
+      // ✅ USAR DADOS DO USUÁRIO RETORNADOS PELA API (mais confiável)
+      if (resp.data.user) {
+        const userData: User = {
+          id: resp.data.user.id.toString(),
+          name: resp.data.user.name,
+          email: resp.data.user.email,
+          role: resp.data.user.role as 'admin' | 'requester',
+          sectorId: resp.data.user.sectorId,
+          sector: {
+            ID: resp.data.user.sector.ID,
+            Name: resp.data.user.sector.Name,
+          },
+        }
         setUser(userData)
         setAuthenticated(true)
       } else {
-        throw new Error('Token inválido')
+        // Fallback para o token se não vier dados do usuário
+        const decodedToken = decodeJWT(token)
+        if (decodedToken) {
+          const userData = createUserFromJWT(decodedToken, email)
+          setUser(userData)
+          setAuthenticated(true)
+        } else {
+          throw new Error('Token inválido')
+        }
       }
     } catch (error) {
       console.error('Erro no login:', error)
@@ -127,6 +162,30 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
     localStorage.removeItem('accessToken')
     setAuthenticated(false)
     setUser(null)
+  }
+
+  // Nova função para atualizar dados do usuário
+  const updateUser = (userData: Partial<User>) => {
+    setUser(prevUser => {
+      if (!prevUser) return null
+      
+      const updatedUser = { ...prevUser, ...userData }
+      
+      // Opcional: Persistir no localStorage para manter dados atualizados
+      try {
+        const existingUserData = localStorage.getItem('userData')
+        if (existingUserData) {
+          const parsedData = JSON.parse(existingUserData)
+          localStorage.setItem('userData', JSON.stringify({ ...parsedData, ...userData }))
+        } else {
+          localStorage.setItem('userData', JSON.stringify(updatedUser))
+        }
+      } catch (error) {
+        console.warn('Erro ao salvar dados do usuário no localStorage:', error)
+      }
+      
+      return updatedUser
+    })
   }
 
   useEffect(() => {
@@ -151,7 +210,8 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
       user, 
       login, 
       logout, 
-      loading 
+      loading,
+      updateUser
     }}>
       {children}
     </AuthContext.Provider>

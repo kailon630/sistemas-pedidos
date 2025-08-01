@@ -37,7 +37,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
       items: [
         { to: '/requests', label: 'Minhas Requisições', icon: FileText },
         { to: '/products', label: 'Produtos', icon: Package },
-        { to: '/budgets', label: 'Cotações', icon: DollarSign },
+        { to: '/product-requests', label: 'Solicitações de Produto', icon: Package },
         ...(isAdmin ? [
           { to: '/suppliers', label: 'Fornecedores', icon: Truck },
         ] : [])
@@ -47,6 +47,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
       name: 'Administração',
       items: [
         { to: '/admin/requests', label: 'Painel Admin', icon: Shield },
+        { to: '/budgets', label: 'Cotações', icon: DollarSign },
         { to: '/sectors', label: 'Setores', icon: Layers },
         { to: '/requesters', label: 'Solicitantes', icon: Users },
       ]
@@ -54,7 +55,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
     { 
       name: 'Relatórios', 
       items: [
-        { to: '/reports', label: 'Relatórios', icon: BarChart3 },
+        ...(isAdmin ? [
+          { to: '/reports', label: 'Relatórios', icon: BarChart3 },
+        ] : [])
       ]
     },
     { 

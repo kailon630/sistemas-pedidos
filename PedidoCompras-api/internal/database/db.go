@@ -34,6 +34,8 @@ func Connect(cfg *config.Config) *gorm.DB {
 		&models.ItemBudget{},                 // Depende de PurchaseRequest, RequestItem, Supplier
 		&models.ItemReceipt{},                // Depende de RequestItem, User, Supplier
 		&models.ProductRegistrationRequest{}, // NOVA TABELA - Depende de User, Sector, Product
+		&models.CompanySettings{},            // NOVA TABELA
+		&models.SystemSettings{},             // NOVA TABELA
 	)
 	if err != nil {
 		log.Fatalf("Erro ao migrar tabelas: %v", err)
@@ -75,6 +77,38 @@ func addPriorityFieldIfNotExists(db *gorm.DB) error {
 			return fmt.Errorf("erro ao adicionar coluna is_priority: %w", err)
 		}
 		log.Println("Campo is_priority adicionado com sucesso")
+	}
+
+	return nil
+}
+
+func addCNPJFieldToSuppliers(db *gorm.DB) error {
+	// Verifica se o campo já existe
+	var count int64
+	err := db.Raw(`
+        SELECT COUNT(*) 
+        FROM information_schema.columns 
+        WHERE table_name = 'suppliers' 
+        AND column_name = 'cnpj'
+    `).Scan(&count).Error
+
+	if err != nil {
+		return fmt.Errorf("erro ao verificar se coluna cnpj exists: %w", err)
+	}
+
+	// Se o campo não existe, adiciona
+	if count == 0 {
+		log.Println("Adicionando campo cnpj à tabela suppliers")
+		err := db.Exec(`
+            ALTER TABLE suppliers 
+            ADD COLUMN cnpj VARCHAR(20) DEFAULT '' AFTER name
+        `).Error
+		if err != nil {
+			return fmt.Errorf("erro ao adicionar coluna cnpj: %w", err)
+		}
+		log.Println("Campo cnpj adicionado com sucesso à tabela suppliers")
+	} else {
+		log.Println("Campo cnpj já existe na tabela suppliers")
 	}
 
 	return nil
