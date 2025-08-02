@@ -22,6 +22,48 @@ export interface Supplier {
   Notes?: string;
 }
 
+export interface User {
+  ID: number;
+  CreatedAt: string;
+  UpdatedAt: string;
+  DeletedAt: string | null;
+  Name: string;
+  Email: string;
+  Role: 'admin' | 'requester';
+  SectorID: number;
+  Sector: {
+    ID: number;
+    Name: string;
+  };
+  stats?: {
+    totalRequests: number;
+    pendingRequests: number;
+    completedRequests: number;
+  };
+}
+
+export interface UpdateUserData {
+  name?: string;
+  email?: string;
+  password?: string;
+  role?: 'admin' | 'requester';
+  sectorId?: number;
+}
+
+export interface CreateUserData {
+  name: string;
+  email: string;
+  password: string;
+  role: 'admin' | 'requester';
+  sectorId: number;
+}
+
+// Novos endpoints para usuários
+export const getUser = (id: number) => api.get<User>(`/users/${id}`);
+export const updateUser = (id: number, data: UpdateUserData) => api.put<User>(`/users/${id}`, data);
+export const deleteUser = (id: number) => api.delete<void>(`/users/${id}`);
+export const promoteToAdmin = (id: number) => api.patch<User>(`/users/${id}/promote`);
+
 export const getSuppliers = () => api.get<Supplier[]>('/suppliers');
 export const getSupplier  = (id: number) => api.get<Supplier>(`/suppliers/${id}`);
 export const createSupplier = (data: Omit<Supplier, 'ID'>) => api.post<Supplier>('/suppliers', data);

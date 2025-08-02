@@ -1,27 +1,34 @@
-// src/pages/RequesterFormPage.tsx
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Save, ArrowLeft, Users, AlertCircle, Eye, EyeOff } from 'lucide-react';
+// src/pages/RequesterFormPage.tsx - Versão Completa
+import React, { useState, useEffect, useContext } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { Save, ArrowLeft, Users, AlertCircle, Eye, EyeOff, Shield } from 'lucide-react';
 import { createRequester, type CreateRequesterData } from '../api/requesters';
 import { getSectors, type Sector } from '../api/sectors';
+import { AuthContext } from '../contexts/AuthContext'; 
 
-// Interface para o formulário
 interface RequesterFormData {
   name: string;
   email: string;
   password: string;
   confirmPassword: string;
+  role: 'admin' | 'requester';
   sectorId: number | '';
 }
 
 const RequesterFormPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user: currentUser } = useContext(AuthContext);
+  const [searchParams] = useSearchParams();
+  
+  // ✅ Detectar o tipo pelo parâmetro da URL
+  const defaultRole = searchParams.get('role') as 'admin' | 'requester' || 'requester';
 
   const [formData, setFormData] = useState<RequesterFormData>({
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
+    role: defaultRole,
     sectorId: ''
   });
 
@@ -87,6 +94,11 @@ const RequesterFormPage: React.FC = () => {
       newErrors.sectorId = 'Setor é obrigatório';
     }
 
+    // Role (apenas admin pode criar outro admin)
+    if (formData.role === 'admin' && currentUser?.role !== 'admin') {
+      newErrors.role = 'Apenas administradores podem criar outros administradores';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -105,24 +117,27 @@ const RequesterFormPage: React.FC = () => {
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
         password: formData.password,
+        role: formData.role,
         sectorId: Number(formData.sectorId)
       };
 
       await createRequester(createData);
-      alert('Solicitante criado com sucesso!');
+      alert(`${formData.role === 'admin' ? 'Administrador' : 'Solicitante'} criado com sucesso!`);
       navigate('/requesters');
     } catch (error: any) {
-      console.error('Erro ao criar solicitante:', error);
+      console.error('Erro ao criar usuário:', error);
       
       if (error.response?.data?.error) {
         const errorMsg = error.response.data.error;
         if (errorMsg.includes('email') || errorMsg.includes('duplicate')) {
           setErrors({ email: 'Este email já está em uso' });
+        } else if (errorMsg.includes('admin')) {
+          setErrors({ role: 'Apenas administradores podem criar outros administradores' });
         } else {
           alert(`Erro: ${errorMsg}`);
         }
       } else {
-        alert('Erro ao criar solicitante. Tente novamente.');
+        alert('Erro ao criar usuário. Tente novamente.');
       }
     } finally {
       setLoading(false);
@@ -180,6 +195,8 @@ const RequesterFormPage: React.FC = () => {
     );
   }
 
+  const isCreatingAdmin = formData.role === 'admin';
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Header */}
@@ -191,9 +208,11 @@ const RequesterFormPage: React.FC = () => {
           <ArrowLeft size={20} />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Novo Solicitante</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Novo {isCreatingAdmin ? 'Administrador' : 'Solicitante'}
+          </h1>
           <p className="text-gray-600">
-            Cadastre um novo usuário solicitante no sistema
+            Cadastre um novo {isCreatingAdmin ? 'usuário administrador' : 'usuário solicitante'} no sistema
           </p>
         </div>
       </div>
@@ -202,16 +221,48 @@ const RequesterFormPage: React.FC = () => {
       <div className="bg-white rounded-lg shadow-sm border">
         <div className="p-6">
           <div className="flex items-center mb-6">
-            <div className="bg-blue-100 p-3 rounded-lg">
-              <Users className="h-6 w-6 text-blue-600" />
+            <div className={`p-3 rounded-lg ${isCreatingAdmin ? 'bg-purple-100' : 'bg-blue-100'}`}>
+              {isCreatingAdmin ? (
+                <Shield className="h-6 w-6 text-purple-600" />
+              ) : (
+                <Users className="h-6 w-6 text-blue-600" />
+              )}
             </div>
             <div className="ml-4">
-              <h2 className="text-lg font-semibold text-gray-900">Informações do Solicitante</h2>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Informações do {isCreatingAdmin ? 'Administrador' : 'Solicitante'}
+              </h2>
               <p className="text-sm text-gray-600">Preencha os dados do novo usuário</p>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Tipo de Usuário */}
+            {currentUser?.role === 'admin' && (
+              <div>
+                <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
+                  Tipo de Usuário *
+                </label>
+                <select
+                  id="role"
+                  value={formData.role}
+                  onChange={(e) => handleChange('role', e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errors.role ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                >
+                  <option value="requester">Solicitante</option>
+                  <option value="admin">Administrador</option>
+                </select>
+                {errors.role && (
+                  <div className="flex items-center mt-1 text-sm text-red-600">
+                    <AlertCircle size={14} className="mr-1" />
+                    {errors.role}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Nome */}
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
@@ -393,14 +444,18 @@ const RequesterFormPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                className={`flex-1 px-4 py-2 rounded-lg text-white flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isCreatingAdmin 
+                    ? 'bg-purple-600 hover:bg-purple-700' 
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
               >
                 {loading ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                 ) : (
                   <Save size={16} className="mr-2" />
                 )}
-                {loading ? 'Criando...' : 'Criar Solicitante'}
+                {loading ? 'Criando...' : `Criar ${isCreatingAdmin ? 'Administrador' : 'Solicitante'}`}
               </button>
             </div>
           </form>
@@ -425,17 +480,34 @@ const RequesterFormPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Informações sobre Solicitantes */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        {/* Informações sobre o tipo de usuário */}
+        <div className={`rounded-lg p-4 border ${isCreatingAdmin ? 'bg-purple-50 border-purple-200' : 'bg-blue-50 border-blue-200'}`}>
           <div className="flex items-start">
-            <Users className="text-blue-600 mr-3 mt-0.5" size={16} />
-            <div className="text-sm text-blue-800">
-              <p className="font-medium mb-1">Sobre solicitantes:</p>
-              <ul className="list-disc list-inside space-y-1 text-blue-700">
-                <li>Poderão criar requisições de compra para seu setor</li>
-                <li>Terão acesso apenas a produtos de seu setor</li>
-                <li>Receberão notificações sobre suas requisições</li>
-                <li>Não terão acesso ao painel administrativo</li>
+            {isCreatingAdmin ? (
+              <Shield className="text-purple-600 mr-3 mt-0.5" size={16} />
+            ) : (
+              <Users className="text-blue-600 mr-3 mt-0.5" size={16} />
+            )}
+            <div className={`text-sm ${isCreatingAdmin ? 'text-purple-800' : 'text-blue-800'}`}>
+              <p className="font-medium mb-1">
+                Sobre {isCreatingAdmin ? 'administradores' : 'solicitantes'}:
+              </p>
+              <ul className={`list-disc list-inside space-y-1 ${isCreatingAdmin ? 'text-purple-700' : 'text-blue-700'}`}>
+                {isCreatingAdmin ? (
+                  <>
+                    <li>Terão acesso total ao sistema administrativo</li>
+                    <li>Poderão gerenciar usuários, setores e configurações</li>
+                    <li>Podem revisar e aprovar requisições</li>
+                    <li>Têm privilégios de criação de outros administradores</li>
+                  </>
+                ) : (
+                  <>
+                    <li>Poderão criar requisições de compra para seu setor</li>
+                    <li>Terão acesso apenas a produtos de seu setor</li>
+                    <li>Receberão notificações sobre suas requisições</li>
+                    <li>Não terão acesso ao painel administrativo</li>
+                  </>
+                )}
               </ul>
             </div>
           </div>

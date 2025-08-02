@@ -30,7 +30,11 @@ func Setup(router *gin.Engine, databaseConnection *gorm.DB, appConfig *config.Co
 		userGroup.Use(middleware.AuthMiddleware(appConfig.JWTSecretKey))
 		{
 			userGroup.GET("", handlers.ListUsers(databaseConnection))
-			userGroup.POST("", handlers.CreateUser(databaseConnection))
+			userGroup.POST("", handlers.CreateUserUpdated(databaseConnection))           // Versão atualizada
+			userGroup.GET("/:id", handlers.GetUser(databaseConnection))                  // Nova rota
+			userGroup.PUT("/:id", handlers.UpdateUser(databaseConnection))               // Nova rota
+			userGroup.DELETE("/:id", handlers.DeleteUser(databaseConnection))            // Nova rota
+			userGroup.PATCH("/:id/promote", handlers.PromoteToAdmin(databaseConnection)) // Nova rota
 		}
 
 		// Produtos (protegido)

@@ -32,6 +32,7 @@ import NotificationSettingsPage from './pages/NotificationSettingsPage'
 import ProfilePage from './pages/ProfilePage'
 import SettingsPage from './pages/SettingsPage'
 import ReportsPage from './pages/ReportsPage'
+import UserEditPage from './pages/UserEditPage'
 
 const App: React.FC = () => (
   <AuthProvider>
@@ -208,6 +209,17 @@ const App: React.FC = () => (
             </Layout>
           </AdminRoute>
         }
+      />
+
+       <Route 
+        path="/requesters/:id/edit" 
+        element={
+          <AdminRoute>
+            <Layout>
+              <UserEditPage />
+            </Layout>
+          </AdminRoute>
+        } 
       />
 
       {/* CRUD de fornecedores */}

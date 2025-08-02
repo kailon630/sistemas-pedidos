@@ -1,7 +1,6 @@
-// src/api/requesters.ts
+// src/api/requesters.ts - Versão Corrigida
 import api from './client';
 
-// Interface para corresponder ao backend Go (User com role "requester")
 export interface Requester {
   ID: number;
   CreatedAt: string;
@@ -9,7 +8,7 @@ export interface Requester {
   DeletedAt: string | null;
   Name: string;
   Email: string;
-  Role: string; // sempre "requester"
+  Role: 'admin' | 'requester';
   SectorID: number;
   Sector: {
     ID: number;
@@ -18,17 +17,28 @@ export interface Requester {
     DeletedAt: string | null;
     Name: string;
   };
+  stats?: {
+    totalRequests: number;
+    pendingRequests: number;
+    completedRequests: number;
+  };
 }
 
-// Para criar solicitante (minúsculas conforme esperado pelo backend)
 export interface CreateRequesterData {
   name: string;
   email: string;
   password: string;
+  role: 'admin' | 'requester';  // ✅ Agora permite admin também
   sectorId: number;
 }
 
-// Resposta da criação (backend remove senha e retorna dados básicos)
+export interface UpdateRequesterData {
+  name?: string;
+  email?: string;
+  password?: string;
+  sectorId?: number;
+}
+
 export interface CreateRequesterResponse {
   id: number;
   name: string;
@@ -40,15 +50,10 @@ export interface CreateRequesterResponse {
   };
 }
 
-// Listar solicitantes (GET /requesters) - retorna apenas users com role "requester"
-export const getRequesters = () => 
-  api.get<Requester[]>('/requesters');
-
-// Buscar solicitante por ID (GET /requesters/:id)
-export const getRequester = (id: number) => 
-  api.get<Requester>(`/requesters/${id}`);
-
-// Criar novo solicitante (POST /requesters)
-export const createRequester = (data: CreateRequesterData) => 
-  api.post<CreateRequesterResponse>('/requesters', data);
-
+// ✅ FUNÇÕES API ATUALIZADAS - usando /users (como está no backend)
+export const getRequesters = () => api.get<Requester[]>('/users');  // Lista todos os usuários
+export const getRequester = (id: number) => api.get<Requester>(`/users/${id}`);
+export const createRequester = (data: CreateRequesterData) => api.post<CreateRequesterResponse>('/users', data);
+export const updateRequester = (id: number, data: UpdateRequesterData) => api.put<Requester>(`/users/${id}`, data);
+export const deleteRequester = (id: number) => api.delete<void>(`/users/${id}`);
+export const promoteToAdmin = (id: number) => api.patch<Requester>(`/users/${id}/promote`);
