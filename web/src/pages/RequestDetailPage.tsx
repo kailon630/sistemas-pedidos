@@ -37,7 +37,6 @@ interface Request {
   CreatedAt?: string;
   RequesterName?: string;
   SectorName?: string;
-  // adicione aqui se o seu Request já vier com priority ou algo assim
   Priority?: string;
 }
 
@@ -251,14 +250,20 @@ const RequestDetailPage: React.FC = () => {
               </div>
             </div>
             
+            {/* ✅ BOTÕES CONDICIONAIS - Cotações apenas para admins */}
             <div className="flex space-x-3">
-              <Link
-                to={`/requests/${id}/budgets`}
-                className="bg-green-50 text-green-700 px-4 py-2 rounded-lg hover:bg-green-100 flex items-center space-x-2 transition-colors"
-              >
-                <DollarSign size={16} />
-                <span>Cotações</span>
-              </Link>
+              {/* ✅ COTAÇÕES - APENAS ADMINS */}
+              {isAdmin && (
+                <Link
+                  to={`/requests/${id}/budgets`}
+                  className="bg-green-50 text-green-700 px-4 py-2 rounded-lg hover:bg-green-100 flex items-center space-x-2 transition-colors"
+                >
+                  <DollarSign size={16} />
+                  <span>Cotações</span>
+                </Link>
+              )}
+              
+              {/* ✅ ADICIONAR ITEM - TODOS PODEM */}
               <Link
                 to={`/requests/${id}/items/new`}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2 transition-colors"
@@ -338,32 +343,68 @@ const RequestDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Actions */}
+      {/* ✅ ACTIONS - BOTÕES CONDICIONAIS */}
       <div className="flex space-x-3">
+        {/* ✅ VOLTAR - TODOS PODEM */}
         <Link
           to="/requests"
-          className="flex-1 bg-gray-100 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-200 flex items-center justify-center transition-colors"
+          className={`bg-gray-100 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-200 flex items-center justify-center transition-colors ${
+            isAdmin ? 'flex-1' : 'flex-[2]' // Ocupa mais espaço se não for admin
+          }`}
         >
           <ArrowLeft size={16} className="mr-2" />
           Voltar para Requisições
         </Link>
 
-        <Link
-          to={`/requests/${id}/budgets`}
-          className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center transition-colors"
-        >
-          <DollarSign size={16} className="mr-2" />
-          Gerenciar Cotações
-        </Link>
+        {/* ✅ COTAÇÕES - APENAS ADMINS */}
+        {isAdmin && (
+          <Link
+            to={`/requests/${id}/budgets`}
+            className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center transition-colors"
+          >
+            <DollarSign size={16} className="mr-2" />
+            Gerenciar Cotações
+          </Link>
+        )}
 
-        <Link
-          to={`/requests/${id}/receipts`}
-          className="flex-1 bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 flex items-center justify-center transition-colors"
-        >
-          <Package size={16} className="mr-2" />
-          Recebimentos
-        </Link>
+        {/* ✅ RECEBIMENTOS - APENAS ADMINS */}
+        {isAdmin && (
+          <Link
+            to={`/requests/${id}/receipts`}
+            className="flex-1 bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 flex items-center justify-center transition-colors"
+          >
+            <Package size={16} className="mr-2" />
+            Recebimentos
+          </Link>
+        )}
+
+        {/* ✅ BOTÃO ALTERNATIVO PARA USUÁRIOS COMUNS */}
+        {!isAdmin && (
+          <Link
+            to={`/requests/${id}/items/new`}
+            className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center transition-colors"
+          >
+            <Plus size={16} className="mr-2" />
+            Adicionar Item
+          </Link>
+        )}
       </div>
+
+      {/* ✅ AVISO INFORMATIVO PARA USUÁRIOS COMUNS */}
+      {!isAdmin && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-start">
+            <AlertCircle className="text-blue-600 mr-3 mt-0.5" size={16} />
+            <div className="text-sm text-blue-800">
+              <p className="font-medium mb-1">Funcionalidades limitadas</p>
+              <p className="text-blue-700">
+                Como solicitante, você pode visualizar e adicionar itens à requisição. 
+                Cotações e recebimentos são gerenciados pelos administradores.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

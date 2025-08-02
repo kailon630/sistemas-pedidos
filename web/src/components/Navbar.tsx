@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { AuthContext } from '../contexts/AuthContext'
 import { Menu, X, User, LogOut, Shield } from 'lucide-react'
 import NotificationDropdown from './NotificationDropdown';
-import SearchBox from './SearchBox'; // ✅ NOVO COMPONENTE
+import SearchBox from './SearchBox'; // ✅ COMPONENTE SEARCH
 import type { CompanySettings } from '../types/settings';
 import settingsApi from '../api/settings'
 
@@ -19,13 +19,14 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
   
-  // ✅ Estados para controle do logo
   const [logoError, setLogoError] = useState(false);
   const [logoLoading, setLogoLoading] = useState(false);
 
+  // ✅ Verificar se é admin
+  const isAdmin = user?.role === 'admin';
+
   useEffect(() => {
     async function loadSettings() {
-      // ✅ Carregar sempre, não só para admins (qualquer usuário pode ver o logo)
       try {
         setLogoLoading(true);
         const response = await settingsApi.getCompanySettings()
@@ -39,7 +40,6 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
       }
     }
     
-    // ✅ Carregar configurações para qualquer usuário logado
     if (user) {
       loadSettings();
     }
@@ -50,13 +50,11 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
     navigate('/login')
   }
 
-  // ✅ Função para lidar com erro de carregamento do logo
   const handleLogoError = () => {
     console.warn('Erro ao carregar logo no navbar');
     setLogoError(true);
   };
 
-  // ✅ Gerar URL do logo com timestamp para quebrar cache
   const getLogoUrl = () => {
     if (!companySettings?.LogoPath) return null;
     return `${settingsApi.getCompanyLogoUrl()}?t=${Date.now()}`;
@@ -84,7 +82,6 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
           </button>
           
           <Link to="/" className="flex items-center space-x-3">
-            {/* ✅ Logo melhorado com estados de loading e erro */}
             {companySettings?.LogoPath && !logoError && !logoLoading && (
               <img 
                 src={getLogoUrl()!}
@@ -92,18 +89,16 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
                 className="h-8 w-auto transition-opacity duration-200"
                 onError={handleLogoError}
                 style={{ 
-                  maxWidth: '120px', // Limitar largura máxima
+                  maxWidth: '120px',
                   objectFit: 'contain' 
                 }}
               />
             )}
             
-            {/* ✅ Loading state para logo */}
             {logoLoading && (
               <div className="h-8 w-12 bg-gray-200 animate-pulse rounded"></div>
             )}
             
-            {/* ✅ Fallback para quando não há logo ou erro */}
             <span className={`text-xl font-bold text-gray-900 ${
               companySettings?.LogoPath && !logoError && !logoLoading ? 'ml-2' : ''
             }`}>
@@ -112,9 +107,14 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
           </Link>
         </div>
 
-        {/* ✅ Center - Search Funcional */}
+        {/* ✅ CENTER - SEARCH APENAS PARA ADMINS */}
         <div className="hidden md:flex flex-1 max-w-lg mx-8">
-          <SearchBox />
+          {isAdmin ? (
+            <SearchBox />
+          ) : (
+            // ✅ ESPAÇO VAZIO PARA USUÁRIOS COMUNS (mantém o layout)
+            <div className="flex-1" />
+          )}
         </div>
 
         {/* Right side - Actions */}
@@ -132,8 +132,8 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
             <NotificationDropdown />
           </button>
 
-          {/* Admin Panel Quick Access */}
-          {user?.role === 'admin' && (
+          {/* ✅ ADMIN PANEL QUICK ACCESS - APENAS PARA ADMINS */}
+          {isAdmin && (
             <Link
               to="/admin/requests"
               className="p-2 rounded-md focus:outline-none focus:ring-2 transition-colors"
@@ -173,10 +173,10 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
               <div 
                 className="w-8 h-8 rounded-full flex items-center justify-center"
                 style={{
-                  backgroundColor: user?.role === 'admin' ? '#dc2626' : '#679080'
+                  backgroundColor: isAdmin ? '#dc2626' : '#679080'
                 }}
               >
-                {user?.role === 'admin' ? (
+                {isAdmin ? (
                   <Shield size={16} className="text-white" />
                 ) : (
                   <User size={16} className="text-white" />
@@ -185,7 +185,7 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
               <div className="hidden md:block text-left">
                 <span className="text-sm font-medium block">{user?.name || 'Usuário'}</span>
                 <span className="text-xs text-gray-500 capitalize">
-                  {user?.role === 'admin' ? 'Administrador' : 'Solicitante'}
+                  {isAdmin ? 'Administrador' : 'Solicitante'}
                 </span>
               </div>
             </button>
@@ -199,11 +199,11 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
                     <span 
                       className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
                       style={{
-                        backgroundColor: user?.role === 'admin' ? '#fef2f2' : 'rgba(103, 144, 128, 0.1)',
-                        color: user?.role === 'admin' ? '#dc2626' : '#679080'
+                        backgroundColor: isAdmin ? '#fef2f2' : 'rgba(103, 144, 128, 0.1)',
+                        color: isAdmin ? '#dc2626' : '#679080'
                       }}
                     >
-                      {user?.role === 'admin' ? (
+                      {isAdmin ? (
                         <>
                           <Shield size={12} className="mr-1" />
                           Administrador
@@ -223,7 +223,8 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
                   )}
                 </div>
                 
-                {user?.role === 'admin' && (
+                {/* ✅ PAINEL ADMIN - APENAS PARA ADMINS */}
+                {isAdmin && (
                   <Link
                     to="/admin/requests"
                     className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -234,14 +235,27 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
                   </Link>
                 )}
                 
-                <Link
-                  to="/settings"
-                  className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  onClick={() => setShowUserMenu(false)}
-                >
-                  <User size={16} className="mr-2" />
-                  Meu Perfil
-                </Link>
+                {/* ✅ CONFIGURAÇÕES - APENAS PARA ADMINS (ou profile para todos) */}
+                {isAdmin ? (
+                  <Link
+                    to="/settings"
+                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    onClick={() => setShowUserMenu(false)}
+                  >
+                    <User size={16} className="mr-2" />
+                    Configurações
+                  </Link>
+                ) : (
+                  // ✅ USUÁRIOS COMUNS PODEM VER APENAS SEU PERFIL (se necessário)
+                  <Link
+                    to="/profile"
+                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    onClick={() => setShowUserMenu(false)}
+                  >
+                    <User size={16} className="mr-2" />
+                    Meu Perfil
+                  </Link>
+                )}
                 
                 <div className="border-t">
                   <button
