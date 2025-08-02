@@ -132,26 +132,34 @@ func UploadCompanyLogo(db *gorm.DB) gin.HandlerFunc {
 		}
 		defer file.Close()
 
-		// Validar tipo de arquivo
-		allowedTypes := []string{".jpg", ".jpeg", ".png", ".gif"}
-		ext := strings.ToLower(filepath.Ext(header.Filename))
-		isValidType := false
-		for _, allowedType := range allowedTypes {
-			if ext == allowedType {
-				isValidType = true
-				break
-			}
+		// ✅ VALIDAÇÕES MELHORADAS
+		allowedTypes := map[string]string{
+			".jpg":  "image/jpeg",
+			".jpeg": "image/jpeg",
+			".png":  "image/png",
+			".gif":  "image/gif",
+			".webp": "image/webp",
 		}
-		if !isValidType {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Tipo de arquivo não suportado. Use JPG, PNG ou GIF"})
+
+		ext := strings.ToLower(filepath.Ext(header.Filename))
+		if _, isValid := allowedTypes[ext]; !isValid {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Tipo de arquivo não suportado. Use JPG, PNG, GIF ou WebP",
+			})
 			return
 		}
 
 		// Validar tamanho (max 5MB)
 		if header.Size > 5*1024*1024 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Arquivo muito grande. Máximo 5MB"})
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Arquivo muito grande. Máximo 5MB",
+			})
 			return
 		}
+
+		// ✅ VALIDAR DIMENSÕES DA IMAGEM (opcional)
+		// Reset file pointer
+		file.Seek(0, 0)
 
 		// Criar diretório se não existir
 		uploadDir := "./uploads/logos"
@@ -172,8 +180,12 @@ func UploadCompanyLogo(db *gorm.DB) gin.HandlerFunc {
 		}
 		defer out.Close()
 
+		// Reset file pointer antes de copiar
+		file.Seek(0, 0)
 		_, err = io.Copy(out, file)
 		if err != nil {
+			// Limpar arquivo parcialmente criado
+			os.Remove(filePath)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao copiar arquivo"})
 			return
 		}
@@ -184,16 +196,21 @@ func UploadCompanyLogo(db *gorm.DB) gin.HandlerFunc {
 			if err == gorm.ErrRecordNotFound {
 				settings = models.CompanySettings{CompanyName: "PedidoCompras"}
 			} else {
+				// Limpar arquivo se erro na DB
+				os.Remove(filePath)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar configurações"})
 				return
 			}
 		}
 
-		// Remover logo anterior se existir
+		// ✅ REMOVER LOGO ANTERIOR se existir (cleanup)
 		if settings.LogoPath != "" {
 			oldPath := settings.LogoPath
 			if _, err := os.Stat(oldPath); err == nil {
-				os.Remove(oldPath)
+				if removeErr := os.Remove(oldPath); removeErr != nil {
+					// Log mas não falha - arquivo antigo pode estar em uso
+					fmt.Printf("Aviso: Não foi possível remover logo anterior: %v\n", removeErr)
+				}
 			}
 		}
 
@@ -202,14 +219,20 @@ func UploadCompanyLogo(db *gorm.DB) gin.HandlerFunc {
 		settings.LogoFilename = header.Filename
 
 		if err := db.Save(&settings).Error; err != nil {
+			// Limpar arquivo se erro ao salvar
+			os.Remove(filePath)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar configurações"})
 			return
 		}
 
+		// ✅ RESPOSTA MELHORADA
 		c.JSON(http.StatusOK, gin.H{
-			"message":  "Logo uploaded com sucesso",
-			"filename": filename,
-			"path":     fmt.Sprintf("/api/v1/settings/company/logo"),
+			"message":      "Logo enviado com sucesso",
+			"filename":     filename,
+			"originalName": header.Filename,
+			"size":         header.Size,
+			"url":          fmt.Sprintf("/api/v1/settings/company/logo"),
+			"settings":     settings, // Retorna settings atualizados
 		})
 	}
 }
@@ -219,6 +242,7 @@ func GetCompanyLogo(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var settings models.CompanySettings
 		if err := db.First(&settings).Error; err != nil || settings.LogoPath == "" {
+			// Retorna um placeholder ou erro 404
 			c.JSON(http.StatusNotFound, gin.H{"error": "Logo não encontrado"})
 			return
 		}
@@ -229,7 +253,29 @@ func GetCompanyLogo(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		// ✅ HEADERS PARA CACHE (importante para performance)
+		c.Header("Cache-Control", "public, max-age=3600") // Cache por 1 hora
+		c.Header("Content-Type", getContentType(settings.LogoPath))
+
+		// Servir arquivo
 		c.File(settings.LogoPath)
+	}
+}
+
+// ✅ HELPER para determinar content-type baseado na extensão
+func getContentType(filePath string) string {
+	ext := strings.ToLower(filepath.Ext(filePath))
+	switch ext {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	default:
+		return "application/octet-stream"
 	}
 }
 

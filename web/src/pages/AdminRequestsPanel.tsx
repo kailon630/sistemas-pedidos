@@ -1,11 +1,11 @@
-// src/pages/AdminRequestsPanel.tsx
-import React, { useState, useEffect, useContext } from 'react';
+// src/pages/AdminRequestsPanel.tsx - LIMPO (removido código não utilizado)
+import React, { useState, useEffect } from 'react';
 import {
   CheckCircle,
   XCircle,
   Clock,
   Eye,
-  AlertTriangle, // ✅ ÍCONE CORRETO PARA URGENTES
+  AlertTriangle,
   AlertCircle,
   Calendar,
   User,
@@ -24,17 +24,13 @@ import {
   completeRequest,
   reopenRequest,
 } from '../api/admin';
-import PriorityButton from '../components/PriorityButton';
-import { AuthContext } from '../contexts/AuthContext';
 import ReviewItemModal from '../components/ReviewItemModal';
 
 const AdminRequestsPanel: React.FC = () => {
-  const { user } = useContext(AuthContext);
-  const isAdmin = user?.role === 'admin';
-
   const [requests, setRequests] = useState<PurchaseRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<PurchaseRequest | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);  
+  const [reviewLoading, setReviewLoading] = useState(false);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'partial' | 'rejected'>('all');
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewingItem, setReviewingItem] = useState<RequestItem | null>(null);
@@ -49,7 +45,7 @@ const AdminRequestsPanel: React.FC = () => {
       console.log('🔍 Carregando requisições...');
 
       const response = await getPurchaseRequests();
-      console.log('📦 Resposta bruta da API:', response.data);
+      console.log('📦 Resposta da API:', response.data);
 
       if (Array.isArray(response.data)) {
         const validRequests = response.data.filter(req => {
@@ -85,36 +81,67 @@ const AdminRequestsPanel: React.FC = () => {
 
   const handleReviewRequest = async (requestId: number, data: ReviewRequestData) => {
     try {
-      console.log('🔍 Revisando requisição:', { requestId, data });
+      setReviewLoading(true);
+      console.log('🔍 Revisando requisição completa:', { requestId, data });
+      
       const response = await reviewRequest(requestId, data);
+      console.log('✅ Resposta da revisão:', response.data);
+      
+      // Atualiza a lista de requisições
       setRequests(prev =>
         prev.map(req => (req.ID === requestId ? response.data : req))
       );
+      
+      // Atualiza a requisição selecionada
       if (selectedRequest?.ID === requestId) {
         setSelectedRequest(response.data);
       }
+      
+      alert('Requisição revisada com sucesso!');
       console.log('✅ Requisição revisada com sucesso');
     } catch (error) {
       console.error('❌ Erro ao revisar requisição:', error);
-      alert('Erro ao revisar requisição. Tente novamente.');
+      alert(`Erro ao revisar requisição: ${error}`);
+    } finally {
+      setReviewLoading(false);
     }
   };
 
   const handleReviewItem = async (requestId: number, itemId: number, data: ReviewItemData) => {
     try {
-      console.log('🔍 Revisando item:', { requestId, itemId, data });
-      await reviewRequestItem(requestId, itemId, data);
-      await loadRequests();
-      if (selectedRequest) {
-        const updated = requests.find(r => r.ID === requestId);
-        if (updated) setSelectedRequest(updated);
+      setReviewLoading(true);
+      console.log('🔍 Revisando item individual:', { requestId, itemId, data });
+      
+      // ✅ VALIDAÇÃO CLIENT-SIDE
+      if (data.status === 'suspended' && !data.suspensionReason?.trim()) {
+        alert('Motivo da suspensão é obrigatório');
+        return;
       }
+      
+      const response = await reviewRequestItem(requestId, itemId, data);
+      console.log('✅ Item revisado:', response.data);
+      
+      // ✅ RECARREGAR DADOS APÓS REVISÃO
+      await loadRequests();
+      
+      // ✅ ATUALIZAR REQUISIÇÃO SELECIONADA COM DADOS ATUALIZADOS
+      const updatedRequests = await getPurchaseRequests();
+      const updatedRequest = updatedRequests.data.find(r => r.ID === requestId);
+      if (updatedRequest) {
+        setSelectedRequest(updatedRequest);
+      }
+      
+      // ✅ FECHAR MODAL
       setShowReviewModal(false);
       setReviewingItem(null);
+      
+      alert('Item revisado com sucesso!');
       console.log('✅ Item revisado com sucesso');
     } catch (error) {
       console.error('❌ Erro ao revisar item:', error);
-      alert('Erro ao revisar item. Tente novamente.');
+      alert(`Erro ao revisar item: ${error}`);
+    } finally {
+      setReviewLoading(false);
     }
   };
 
@@ -122,17 +149,24 @@ const AdminRequestsPanel: React.FC = () => {
     try {
       const notes = window.prompt('Observações da conclusão (opcional)') || undefined;
       console.log('🔍 Concluindo requisição:', { requestId, notes });
+      
       const response = await completeRequest(requestId, notes);
+      
+      // Atualiza a lista de requisições
       setRequests(prev =>
         prev.map(req => (req.ID === requestId ? response.data : req))
       );
+      
+      // Atualiza a requisição selecionada
       if (selectedRequest?.ID === requestId) {
         setSelectedRequest(response.data);
       }
+      
+      alert('Requisição concluída com sucesso!');
       console.log('✅ Requisição concluída com sucesso');
     } catch (error) {
       console.error('❌ Erro ao concluir requisição:', error);
-      alert('Erro ao concluir requisição. Tente novamente.');
+      alert(`Erro ao concluir requisição: ${error}`);
     }
   };
 
@@ -140,25 +174,22 @@ const AdminRequestsPanel: React.FC = () => {
     try {
       console.log('🔍 Reabrindo requisição:', requestId);
       const response = await reopenRequest(requestId);
+      
+      // Atualiza a lista de requisições
       setRequests(prev =>
         prev.map(req => (req.ID === requestId ? response.data : req))
       );
+      
+      // Atualiza a requisição selecionada
       if (selectedRequest?.ID === requestId) {
         setSelectedRequest(response.data);
       }
+      
+      alert('Requisição reaberta com sucesso!');
       console.log('✅ Requisição reaberta com sucesso');
     } catch (error) {
       console.error('❌ Erro ao reabrir requisição:', error);
-      alert('Erro ao reabrir requisição. Tente novamente.');
-    }
-  };
-
-  const handleRequestUpdate = (updatedRequest: PurchaseRequest) => {
-    setRequests(prev =>
-      prev.map(req => (req.ID === updatedRequest.ID ? updatedRequest : req))
-    );
-    if (selectedRequest?.ID === updatedRequest.ID) {
-      setSelectedRequest(updatedRequest);
+      alert(`Erro ao reabrir requisição: ${error}`);
     }
   };
 
@@ -169,7 +200,7 @@ const AdminRequestsPanel: React.FC = () => {
       case 'partial': return 'text-purple-600 bg-purple-100';
       case 'rejected': return 'text-red-600 bg-red-100';
       case 'completed': return 'text-blue-600 bg-blue-100';
-      case 'suspended': return 'text-orange-600 bg-orange-100'; // ✅ NOVO
+      case 'suspended': return 'text-orange-600 bg-orange-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
@@ -181,7 +212,7 @@ const AdminRequestsPanel: React.FC = () => {
       case 'partial': return <AlertCircle size={16} />;
       case 'rejected': return <XCircle size={16} />;
       case 'completed': return <CheckCircle size={16} />;
-      case 'suspended': return <AlertTriangle size={16} />; // ✅ NOVO
+      case 'suspended': return <AlertTriangle size={16} />;
       default: return <Clock size={16} />;
     }
   };
@@ -193,7 +224,7 @@ const AdminRequestsPanel: React.FC = () => {
       case 'partial': return 'Parcial';
       case 'rejected': return 'Rejeitado';
       case 'completed': return 'Concluído';
-      case 'suspended': return 'Suspenso'; // ✅ NOVO
+      case 'suspended': return 'Suspenso';
       default: return status;
     }
   };
@@ -232,7 +263,6 @@ const AdminRequestsPanel: React.FC = () => {
           { label: 'Aprovados', count: requests.filter(r => r.status === 'approved').length, color: 'green', icon: CheckCircle },
           { label: 'Parciais', count: requests.filter(r => r.status === 'partial').length, color: 'purple', icon: AlertCircle },
           { label: 'Rejeitados', count: requests.filter(r => r.status === 'rejected').length, color: 'red', icon: XCircle },
-          { label: 'Urgentes', count: requests.filter(r => r.priority === 'urgent').length, color: 'red', icon: AlertTriangle },
         ].map(stat => (
           <div key={stat.label} className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
@@ -306,13 +336,6 @@ const AdminRequestsPanel: React.FC = () => {
                           {getStatusIcon(request.status)}
                           <span className="ml-1">{getStatusText(request.status)}</span>
                         </span>
-                        <PriorityButton
-                          request={request}
-                          onUpdate={handleRequestUpdate}
-                          isAdmin={isAdmin}
-                          size="small"
-                          showDropdown={false}
-                        />
                       </div>
                       <div className="space-y-1 text-sm text-gray-600">
                         <div className="flex items-center">
@@ -362,12 +385,6 @@ const AdminRequestsPanel: React.FC = () => {
                       {getStatusIcon(selectedRequest.status)}
                       <span className="ml-2">{getStatusText(selectedRequest.status)}</span>
                     </span>
-                    <PriorityButton
-                      request={selectedRequest}
-                      onUpdate={handleRequestUpdate}
-                      isAdmin={isAdmin}
-                      showDropdown={true}
-                    />
                   </div>
                 </div>
               </div>
@@ -432,13 +449,15 @@ const AdminRequestsPanel: React.FC = () => {
                                   setReviewingItem(item);
                                   setShowReviewModal(true);
                                 }}
-                                className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                                disabled={reviewLoading}
+                                className="text-blue-600 hover:text-blue-700 text-sm font-medium disabled:opacity-50"
                               >
-                                Revisar
+                                {reviewLoading ? 'Processando...' : 'Revisar'}
                               </button>
                             )}
                           </div>
                         </div>
+                        
                         {item.adminNotes && (
                           <div className="bg-blue-50 border-l-4 border-blue-400 p-3 mt-3">
                             <div className="flex items-start">
@@ -450,6 +469,7 @@ const AdminRequestsPanel: React.FC = () => {
                             </div>
                           </div>
                         )}
+                        
                         {item.suspensionReason && (
                           <div className="bg-orange-50 border-l-4 border-orange-400 p-3 mt-3">
                             <div className="flex items-start">
@@ -461,7 +481,6 @@ const AdminRequestsPanel: React.FC = () => {
                             </div>
                           </div>
                         )}
-
                       </div>
                     ))}
                   </div>
@@ -474,17 +493,19 @@ const AdminRequestsPanel: React.FC = () => {
                     <div className="flex space-x-3">
                       <button
                         onClick={() => handleReviewRequest(selectedRequest.ID, { status: 'approved' })}
-                        className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center"
+                        disabled={reviewLoading}
+                        className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center disabled:opacity-50"
                       >
                         <CheckCircle size={16} className="mr-2" />
-                        Aprovar Tudo
+                        {reviewLoading ? 'Processando...' : 'Aprovar Tudo'}
                       </button>
                       <button
                         onClick={() => handleReviewRequest(selectedRequest.ID, { status: 'rejected' })}
-                        className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center justify-center"
+                        disabled={reviewLoading}
+                        className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center justify-center disabled:opacity-50"
                       >
                         <XCircle size={16} className="mr-2" />
-                        Rejeitar Tudo
+                        {reviewLoading ? 'Processando...' : 'Rejeitar Tudo'}
                       </button>
                     </div>
                   </div>
@@ -541,87 +562,19 @@ const AdminRequestsPanel: React.FC = () => {
 
       {/* Modal de Revisão de Item */}
       {showReviewModal && reviewingItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Revisar Item</h3>
-            <div className="mb-4">
-              <h4 className="font-medium">{reviewingItem.product?.name || 'Produto não identificado'}</h4>
-              <p className="text-sm text-gray-600">
-                Quantidade: {reviewingItem.quantity} {reviewingItem.product?.unit || 'un'}
-              </p>
-            </div>
-            <form onSubmit={e => {
-                e.preventDefault();
-                const fd = new FormData(e.currentTarget);
-                const status = fd.get('status') as 'approved' | 'rejected';
-                const adminNotes = fd.get('adminNotes') as string;
-                handleReviewItem(selectedRequest!.ID, reviewingItem.ID, {
-                  status,
-                  adminNotes: adminNotes || undefined
-                });
-              }}>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Decisão</label>
-                  <div className="space-y-2">
-                    <label className="flex items-center">
-                      <input type="radio" name="status" value="approved" className="mr-2" />
-                      <CheckCircle size={16} className="text-green-600 mr-2" />
-                      Aprovar
-                    </label>
-                    <label className="flex items-center">
-                      <input type="radio" name="status" value="rejected" className="mr-2" />
-                      <XCircle size={16} className="text-red-600 mr-2" />
-                      Rejeitar
-                    </label>
-                    <ReviewItemModal
-                      isOpen={showReviewModal}
-                      onClose={() => {
-                        setShowReviewModal(false);
-                        setReviewingItem(null);
-                      }}
-                      onSubmit={(data) => {
-                        console.log('📝 Dados do modal:', data);
-                        handleReviewItem(selectedRequest!.ID, reviewingItem.ID, data);
-                      }}
-                      item={reviewingItem}
-                      loading={loading}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Observações (opcional)
-                  </label>
-                  <textarea
-                    name="adminNotes"
-                    rows={3}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Adicione observações sobre esta decisão..."
-                  />
-                </div>
-              </div>
-              <div className="flex space-x-3 mt-6">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowReviewModal(false);
-                    setReviewingItem(null);
-                  }}
-                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                >
-                  Confirmar
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <ReviewItemModal
+          isOpen={showReviewModal}
+          onClose={() => {
+            setShowReviewModal(false);
+            setReviewingItem(null);
+          }}
+          onSubmit={(data) => {
+            console.log('📝 Dados do modal:', data);
+            handleReviewItem(selectedRequest!.ID, reviewingItem.ID, data);
+          }}
+          item={reviewingItem}
+          loading={reviewLoading}
+        />
       )}
     </div>
   );

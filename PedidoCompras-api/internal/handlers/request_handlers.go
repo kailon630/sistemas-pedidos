@@ -361,7 +361,7 @@ func ReviewRequestItem(db *gorm.DB) gin.HandlerFunc {
 
 		itemID := c.Param("itemId")
 
-		// ✅ NOVO INPUT COM STATUS SUSPENSO E MOTIVO
+		// ✅ INPUT COM STATUS SUSPENSO E MOTIVO
 		type reviewItemInput struct {
 			Status           string `json:"status" binding:"required,oneof=approved rejected suspended"`
 			AdminNotes       string `json:"adminNotes"`
@@ -370,54 +370,80 @@ func ReviewRequestItem(db *gorm.DB) gin.HandlerFunc {
 
 		var input reviewItemInput
 		if err := c.ShouldBindJSON(&input); err != nil {
+			fmt.Printf("❌ Erro no bind JSON: %v\n", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		// ✅ VALIDAÇÃO: Se status é suspenso, motivo é obrigatório
+		// ✅ VALIDAÇÃO MAIS RIGOROSA: Se status é suspenso, motivo é obrigatório
 		if input.Status == "suspended" && strings.TrimSpace(input.SuspensionReason) == "" {
+			fmt.Printf("❌ Status suspenso sem motivo\n")
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Motivo da suspensão é obrigatório"})
 			return
 		}
 
+		// ✅ LOG DOS DADOS RECEBIDOS
+		fmt.Printf("📝 Dados recebidos - ItemID: %s, Status: %s, SuspensionReason: %s, AdminNotes: %s\n",
+			itemID, input.Status, input.SuspensionReason, input.AdminNotes)
+
 		var item models.RequestItem
 		if err := db.Preload("PurchaseRequest").First(&item, itemID).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
+				fmt.Printf("❌ Item não encontrado: %s\n", itemID)
 				c.JSON(http.StatusNotFound, gin.H{"error": "Item não encontrado"})
 			} else {
+				fmt.Printf("❌ Erro ao buscar item: %v\n", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar item"})
 			}
 			return
 		}
 
+		// ✅ LOG DO ITEM ENCONTRADO
+		fmt.Printf("📦 Item encontrado - ID: %d, Status atual: %s, RequestID: %d\n",
+			item.ID, item.Status, item.PurchaseRequestID)
+
+		// ✅ INICIAR TRANSAÇÃO PARA ATOMICIDADE
+		tx := db.Begin()
+		defer func() {
+			if r := recover(); r != nil {
+				tx.Rollback()
+			}
+		}()
+
 		// Atualiza o item
 		item.Status = input.Status
 		item.AdminNotes = input.AdminNotes
 
-		// ✅ NOVO: Atualizar motivo de suspensão
+		// ✅ ATUALIZAR MOTIVO DE SUSPENSÃO
 		if input.Status == "suspended" {
 			item.SuspensionReason = input.SuspensionReason
+			fmt.Printf("✅ Definindo motivo de suspensão: %s\n", input.SuspensionReason)
 		} else {
 			item.SuspensionReason = "" // Limpar se não for suspenso
 		}
 
-		if err := db.Save(&item).Error; err != nil {
+		if err := tx.Save(&item).Error; err != nil {
+			tx.Rollback()
+			fmt.Printf("❌ Erro ao salvar item: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar item"})
 			return
 		}
 
-		// ✅ NOVA LÓGICA: Calcular status da requisição baseado em TODOS os itens
+		fmt.Printf("✅ Item salvo com sucesso - Status: %s\n", item.Status)
+
+		// ✅ RECALCULAR STATUS DA REQUISIÇÃO - LÓGICA CORRIGIDA
 		var totalItems, approvedItems, rejectedItems, suspendedItems, pendingItems int64
 
-		db.Model(&models.RequestItem{}).Where("purchase_request_id = ?", item.PurchaseRequestID).Count(&totalItems)
-		db.Model(&models.RequestItem{}).Where("purchase_request_id = ? AND status = ?", item.PurchaseRequestID, "approved").Count(&approvedItems)
-		db.Model(&models.RequestItem{}).Where("purchase_request_id = ? AND status = ?", item.PurchaseRequestID, "rejected").Count(&rejectedItems)
-		db.Model(&models.RequestItem{}).Where("purchase_request_id = ? AND status = ?", item.PurchaseRequestID, "suspended").Count(&suspendedItems)
-		db.Model(&models.RequestItem{}).Where("purchase_request_id = ? AND status = ?", item.PurchaseRequestID, "pending").Count(&pendingItems)
+		tx.Model(&models.RequestItem{}).Where("purchase_request_id = ?", item.PurchaseRequestID).Count(&totalItems)
+		tx.Model(&models.RequestItem{}).Where("purchase_request_id = ? AND status = ?", item.PurchaseRequestID, "approved").Count(&approvedItems)
+		tx.Model(&models.RequestItem{}).Where("purchase_request_id = ? AND status = ?", item.PurchaseRequestID, "rejected").Count(&rejectedItems)
+		tx.Model(&models.RequestItem{}).Where("purchase_request_id = ? AND status = ?", item.PurchaseRequestID, "suspended").Count(&suspendedItems)
+		tx.Model(&models.RequestItem{}).Where("purchase_request_id = ? AND status = ?", item.PurchaseRequestID, "pending").Count(&pendingItems)
 
 		// ✅ NOVA LÓGICA DE STATUS DA REQUISIÇÃO
 		var requisicao models.PurchaseRequest
-		if err := db.First(&requisicao, item.PurchaseRequestID).Error; err == nil {
+		if err := tx.First(&requisicao, item.PurchaseRequestID).Error; err == nil {
+			oldStatus := requisicao.Status
 			newStatus := requisicao.Status // manter atual como padrão
 
 			// Se ainda tem itens pendentes, mantém pending
@@ -438,21 +464,42 @@ func ReviewRequestItem(db *gorm.DB) gin.HandlerFunc {
 				}
 			}
 
-			fmt.Printf("📊 Status calculation - Total: %d, Approved: %d, Rejected: %d, Suspended: %d, Pending: %d -> %s\n",
-				totalItems, approvedItems, rejectedItems, suspendedItems, pendingItems, newStatus)
+			fmt.Printf("📊 Recálculo de status - RequestID: %d, Total: %d, Approved: %d, Rejected: %d, Suspended: %d, Pending: %d\n",
+				item.PurchaseRequestID, totalItems, approvedItems, rejectedItems, suspendedItems, pendingItems)
+			fmt.Printf("📊 Status: %s -> %s\n", oldStatus, newStatus)
 
-			requisicao.Status = newStatus
-			db.Save(&requisicao)
+			// ✅ SÓ ATUALIZAR SE MUDOU
+			if newStatus != oldStatus {
+				requisicao.Status = newStatus
+				if err := tx.Save(&requisicao).Error; err != nil {
+					tx.Rollback()
+					fmt.Printf("❌ Erro ao atualizar status da requisição: %v\n", err)
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar status da requisição"})
+					return
+				}
+				fmt.Printf("✅ Status da requisição atualizado: %s\n", newStatus)
+			}
 		}
 
-		// Carrega item completo
+		// ✅ CONFIRMAR TRANSAÇÃO
+		if err := tx.Commit().Error; err != nil {
+			fmt.Printf("❌ Erro ao fazer commit: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao finalizar atualização"})
+			return
+		}
+
+		// Carrega item completo APÓS o commit
 		if err := db.Preload("Product").Preload("PurchaseRequest").First(&item, itemID).Error; err != nil {
+			fmt.Printf("❌ Erro ao carregar item atualizado: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao carregar item"})
 			return
 		}
 
+		fmt.Printf("✅ Operação concluída com sucesso - Item %d, Status: %s\n", item.ID, item.Status)
+
 		c.JSON(http.StatusOK, item)
 
+		// ✅ EMITIR NOTIFICAÇÃO
 		notifications.Publish(
 			fmt.Sprintf("review-item:%d:%s", item.ID, item.Status),
 		)
@@ -532,7 +579,7 @@ func CreateRequester(databaseConnection *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// CompleteRequest marca uma requisição como concluída
+// CompleteRequest - CORRIGIDO (removido partialItems desnecessário)
 func CompleteRequest(databaseConnection *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Apenas admin pode concluir requisições
@@ -555,7 +602,7 @@ func CompleteRequest(databaseConnection *gorm.DB) gin.HandlerFunc {
 		}
 
 		var requisicao models.PurchaseRequest
-		if err := databaseConnection.First(&requisicao, requestID).Error; err != nil {
+		if err := databaseConnection.Preload("Items").First(&requisicao, requestID).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Requisição não encontrada"})
 			} else {
@@ -564,13 +611,46 @@ func CompleteRequest(databaseConnection *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// Verifica se pode ser concluída
+		// ✅ VALIDAÇÃO 1: VERIFICAR SE AINDA HÁ ITENS PENDENTES
+		var pendingItems int64
+		databaseConnection.Model(&models.RequestItem{}).
+			Where("purchase_request_id = ? AND status = ?", requestID, "pending").
+			Count(&pendingItems)
+
+		if pendingItems > 0 {
+			fmt.Printf("❌ Tentativa de concluir requisição %s com %d itens pendentes\n", requestID, pendingItems)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("Não é possível concluir requisição com %d itens ainda pendentes. Revise todos os itens primeiro.", pendingItems),
+			})
+			return
+		}
+
+		// ✅ VALIDAÇÃO 2: STATUS DA REQUISIÇÃO DEVE SER APPROVED OU PARTIAL
 		if !requisicao.CanBeCompleted() {
+			fmt.Printf("❌ Tentativa de concluir requisição %s com status inválido: %s\n", requestID, requisicao.Status)
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "Requisição deve estar aprovada ou parcialmente aprovada para ser concluída",
 			})
 			return
 		}
+
+		// ✅ VALIDAÇÃO 3: DEVE HAVER PELO MENOS UM ITEM APROVADO OU SUSPENSO
+		// (Suspensos são considerados "em andamento", então podem ser concluídos)
+		var usefulItems int64 // ← NOME MAIS CLARO
+		databaseConnection.Model(&models.RequestItem{}).
+			Where("purchase_request_id = ? AND status IN (?)", requestID, []string{"approved", "suspended"}).
+			Count(&usefulItems)
+
+		if usefulItems == 0 {
+			fmt.Printf("❌ Tentativa de concluir requisição %s sem itens aprovados/suspensos\n", requestID)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Não é possível concluir requisição sem pelo menos um item aprovado ou suspenso",
+			})
+			return
+		}
+
+		fmt.Printf("✅ Validações aprovadas - Concluindo requisição %s (pendentes: %d, úteis: %d)\n",
+			requestID, pendingItems, usefulItems)
 
 		// Marca como concluída
 		requisicao.Status = models.StatusCompleted
@@ -583,6 +663,7 @@ func CompleteRequest(databaseConnection *gorm.DB) gin.HandlerFunc {
 		requisicao.CompletedBy = &completedByUint
 
 		if err := databaseConnection.Save(&requisicao).Error; err != nil {
+			fmt.Printf("❌ Erro ao salvar conclusão: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao concluir requisição"})
 			return
 		}
@@ -595,6 +676,8 @@ func CompleteRequest(databaseConnection *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao carregar requisição"})
 			return
 		}
+
+		fmt.Printf("✅ Requisição %s concluída com sucesso\n", requestID)
 
 		c.JSON(http.StatusOK, requisicao)
 

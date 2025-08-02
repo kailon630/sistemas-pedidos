@@ -2,6 +2,7 @@
 import React, { useState } from 'react'
 import Navbar from './Navbar'
 import Sidebar from './Sidebar'
+import NotificationDebug from './NotificationDebug'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -15,6 +16,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50">
       <Navbar onToggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} />
       
@@ -31,6 +33,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </main>
       </div>
     </div>
+    {import.meta.env.DEV && <NotificationDebug />}
+    </>
   )
 }
 

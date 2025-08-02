@@ -42,14 +42,16 @@ const SettingsPage: React.FC = () => {
   const [systemSaving, setSystemSaving] = useState(false);
   const [systemSuccess, setSystemSuccess] = useState<string | null>(null);
 
-  // Estados do logo
+  // ✅ Estados do logo melhorados
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoError, setLogoError] = useState(false);
 
   useEffect(() => {
     loadSettings();
   }, []);
 
+  // ✅ Função melhorada de carregamento
   const loadSettings = async () => {
     try {
       setLoading(true);
@@ -84,9 +86,13 @@ const SettingsPage: React.FC = () => {
         auditLogEnabled: systemResponse.data.AuditLogEnabled,
       });
 
-      // Carregar preview do logo se existir
+      // ✅ Carregar preview do logo com tratamento de erro
       if (companyResponse.data.LogoPath) {
-        setLogoPreview(settingsApi.getCompanyLogoUrl());
+        const logoUrl = `${settingsApi.getCompanyLogoUrl()}?t=${Date.now()}`;
+        setLogoPreview(logoUrl);
+        setLogoError(false);
+      } else {
+        setLogoPreview(null);
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Erro ao carregar configurações');
@@ -135,14 +141,25 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  // ✅ Funções para controle do logo
+  const handleLogoError = () => {
+    console.warn('Erro ao carregar logo da empresa');
+    setLogoError(true);
+    setLogoPreview(null);
+  };
+
+  // ✅ Função melhorada de upload
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validações
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+    // Reset estados
+    setLogoError(false);
+
+    // ✅ Validações melhoradas no frontend
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      setError('Tipo de arquivo não suportado. Use JPG, PNG ou GIF');
+      setError('Tipo de arquivo não suportado. Use JPG, PNG, GIF ou WebP');
       return;
     }
 
@@ -155,23 +172,39 @@ const SettingsPage: React.FC = () => {
       setLogoUploading(true);
       setError(null);
 
+      // ✅ Upload melhorado
       await settingsApi.uploadCompanyLogo(file);
       
-      // Atualizar preview
+      // ✅ Preview local imediato
       const reader = new FileReader();
       reader.onload = (e) => {
-        setLogoPreview(e.target?.result as string);
+        const result = e.target?.result as string;
+        setLogoPreview(result);
+        setLogoError(false);
       };
       reader.readAsDataURL(file);
 
-      // Recarregar configurações
-      const response = await settingsApi.getCompanySettings();
-      setCompanySettings(response.data);
-      
+      // ✅ Recarregar configurações para garantir sincronização
+      setTimeout(async () => {
+        try {
+          const settingsResponse = await settingsApi.getCompanySettings();
+          setCompanySettings(settingsResponse.data);
+          
+          // Forçar reload da URL do logo com timestamp para quebrar cache
+          const logoUrl = `${settingsApi.getCompanyLogoUrl()}?t=${Date.now()}`;
+          setLogoPreview(logoUrl);
+        } catch (err) {
+          console.warn('Erro ao recarregar configurações:', err);
+        }
+      }, 500);
+
       setCompanySuccess('Logo atualizado com sucesso!');
       setTimeout(() => setCompanySuccess(null), 3000);
+      
     } catch (err: any) {
+      console.error('Erro no upload:', err);
       setError(err.response?.data?.error || 'Erro ao fazer upload do logo');
+      setLogoError(true);
     } finally {
       setLogoUploading(false);
     }
@@ -356,46 +389,64 @@ const SettingsPage: React.FC = () => {
                     />
                   </div>
 
-                  {/* Logo Upload */}
+                  {/* ✅ Logo Upload Melhorado */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Logo da Empresa
                     </label>
                     
                     <div className="space-y-4">
-                      {logoPreview && (
+                      {/* ✅ Preview melhorado com fallback */}
+                      {logoPreview && !logoError && (
                         <div className="flex items-center justify-center p-4 border border-gray-300 rounded-md bg-gray-50">
                           <img
                             src={logoPreview}
                             alt="Logo da empresa"
                             className="max-h-20 max-w-40 object-contain"
+                            onError={handleLogoError}
                           />
                         </div>
                       )}
                       
+                      {/* ✅ Estado de erro */}
+                      {logoError && (
+                        <div className="flex items-center justify-center p-4 border border-red-300 rounded-md bg-red-50">
+                          <div className="text-center text-red-600">
+                            <AlertTriangle size={24} className="mx-auto mb-2" />
+                            <p className="text-sm">Erro ao carregar logo</p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* ✅ Upload area melhorada */}
                       <div className="flex items-center justify-center w-full">
                         <label
                           htmlFor="logo-upload"
-                          className={`flex flex-col items-center justify-center w-full h-24 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 ${
+                          className={`flex flex-col items-center justify-center w-full h-24 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors ${
                             logoUploading ? 'opacity-50 cursor-not-allowed' : ''
                           }`}
                         >
                           <div className="flex flex-col items-center justify-center pt-2 pb-3">
                             {logoUploading ? (
-                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                              <>
+                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                                <p className="text-sm text-gray-500 mt-1">Enviando...</p>
+                              </>
                             ) : (
-                              <Upload className="w-6 h-6 mb-1 text-gray-500" />
+                              <>
+                                <Upload className="w-6 h-6 mb-1 text-gray-500" />
+                                <p className="text-sm text-gray-500">
+                                  Clique para {logoPreview ? 'alterar' : 'enviar'} logo
+                                </p>
+                              </>
                             )}
-                            <p className="text-sm text-gray-500">
-                              {logoUploading ? 'Enviando...' : 'Clique para enviar logo'}
-                            </p>
-                            <p className="text-xs text-gray-500">JPG, PNG ou GIF (máx. 5MB)</p>
+                            <p className="text-xs text-gray-500">JPG, PNG, GIF ou WebP (máx. 5MB)</p>
                           </div>
                           <input
                             id="logo-upload"
                             type="file"
                             className="hidden"
-                            accept="image/*"
+                            accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
                             onChange={handleLogoUpload}
                             disabled={logoUploading}
                           />
@@ -403,6 +454,7 @@ const SettingsPage: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* ✅ Informações sobre uso do logo */}
                     <div className="mt-2 text-xs text-gray-600">
                       <p className="font-medium">O logo será exibido em:</p>
                       <ul className="list-disc list-inside mt-1 space-y-1">
@@ -411,6 +463,11 @@ const SettingsPage: React.FC = () => {
                         <li>Relatórios gerados (Excel/PDF)</li>
                         <li>Emails automáticos do sistema</li>
                       </ul>
+                      {logoError && (
+                        <p className="text-red-600 mt-2">
+                          ⚠️ Se o erro persistir, tente recarregar a página ou contacte o suporte.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

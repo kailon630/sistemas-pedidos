@@ -1,4 +1,3 @@
-// src/contexts/AuthContext.tsx 
 import React, { createContext, useState, useEffect } from 'react'
 import api from '../api/client'
 
@@ -14,7 +13,6 @@ interface User {
   }
 }
 
-// ✅ INTERFACES PARA TIPAGEM DA RESPOSTA DA API
 interface LoginResponse {
   token: string
   user?: {
@@ -80,27 +78,44 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
   useEffect(() => {
     const initializeAuth = () => {
       try {
-        const token = localStorage.getItem('accessToken')
+        // ✅ VERIFICAR MÚLTIPLAS FONTES DE TOKEN
+        const token = localStorage.getItem('accessToken') 
+          || localStorage.getItem('token') 
+          || localStorage.getItem('authToken')
+        
+        console.log('🔍 Auth: Inicializando...', {
+          accessToken: !!localStorage.getItem('accessToken'),
+          token: !!localStorage.getItem('token'),
+          authToken: !!localStorage.getItem('authToken'),
+          found: !!token
+        })
         
         if (token) {
           const decodedToken = decodeJWT(token)
           
           if (decodedToken && decodedToken.exp && decodedToken.exp > Date.now() / 1000) {
+            console.log('✅ Auth: Token válido encontrado')
             const userData = createUserFromJWT(decodedToken)
             setUser(userData)
             setAuthenticated(true)
           } else {
+            console.log('❌ Auth: Token expirado')
             localStorage.removeItem('accessToken')
+            localStorage.removeItem('token')
+            localStorage.removeItem('authToken')
             setAuthenticated(false)
             setUser(null)
           }
         } else {
+          console.log('❌ Auth: Nenhum token encontrado')
           setAuthenticated(false)
           setUser(null)
         }
       } catch (error) {
-        console.error('Erro ao inicializar autenticação:', error)
+        console.error('❌ Auth: Erro ao inicializar:', error)
         localStorage.removeItem('accessToken')
+        localStorage.removeItem('token')
+        localStorage.removeItem('authToken')
         setAuthenticated(false)
         setUser(null)
       } finally {
@@ -113,7 +128,9 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
 
   const login = async (email: string, password: string) => {
     try {
-      // ✅ TIPAR A RESPOSTA DA API
+      console.log('🔐 Auth: Iniciando login para:', email);
+
+      
       const resp = await api.post<LoginResponse>('/auth/login', { email, password })
       const token = resp.data.token
       
@@ -121,9 +138,20 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
         throw new Error('Token não retornado pela API')
       }
       
-      localStorage.setItem('accessToken', token)
+      console.log('✅ Auth: Token recebido, salvando no localStorage...')
       
-      // ✅ USAR DADOS DO USUÁRIO RETORNADOS PELA API (mais confiável)
+      // ✅ SALVAR TOKEN EM MÚLTIPLOS LOCAIS PARA GARANTIR
+      localStorage.setItem('accessToken', token)
+      localStorage.setItem('token', token) // fallback
+      localStorage.setItem('authToken', token) // fallback extra
+      
+      console.log('✅ Auth: Token salvo:', {
+        accessToken: !!localStorage.getItem('accessToken'),
+        token: !!localStorage.getItem('token'),
+        authToken: !!localStorage.getItem('authToken')
+      })
+      
+      // ✅ USAR DADOS DO USUÁRIO RETORNADOS PELA API
       if (resp.data.user) {
         const userData: User = {
           id: resp.data.user.id.toString(),
@@ -138,6 +166,7 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
         }
         setUser(userData)
         setAuthenticated(true)
+        console.log('✅ Auth: Login realizado com sucesso para:', userData.name)
       } else {
         // Fallback para o token se não vier dados do usuário
         const decodedToken = decodeJWT(token)
@@ -145,13 +174,16 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
           const userData = createUserFromJWT(decodedToken, email)
           setUser(userData)
           setAuthenticated(true)
+          console.log('✅ Auth: Login realizado via token decode para:', userData.name)
         } else {
           throw new Error('Token inválido')
         }
       }
     } catch (error) {
-      console.error('Erro no login:', error)
+      console.error('❌ Auth: Erro no login:', error)
       localStorage.removeItem('accessToken')
+      localStorage.removeItem('token')
+      localStorage.removeItem('authToken')
       setAuthenticated(false)
       setUser(null)
       throw error
@@ -159,31 +191,18 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
   }
 
   const logout = () => {
+    console.log('🚪 Auth: Fazendo logout...')
     localStorage.removeItem('accessToken')
+    localStorage.removeItem('token')
+    localStorage.removeItem('authToken')
     setAuthenticated(false)
     setUser(null)
   }
 
-  // Nova função para atualizar dados do usuário
   const updateUser = (userData: Partial<User>) => {
     setUser(prevUser => {
       if (!prevUser) return null
-      
       const updatedUser = { ...prevUser, ...userData }
-      
-      // Opcional: Persistir no localStorage para manter dados atualizados
-      try {
-        const existingUserData = localStorage.getItem('userData')
-        if (existingUserData) {
-          const parsedData = JSON.parse(existingUserData)
-          localStorage.setItem('userData', JSON.stringify({ ...parsedData, ...userData }))
-        } else {
-          localStorage.setItem('userData', JSON.stringify(updatedUser))
-        }
-      } catch (error) {
-        console.warn('Erro ao salvar dados do usuário no localStorage:', error)
-      }
-      
       return updatedUser
     })
   }
@@ -193,6 +212,7 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
+          console.warn('⚠️ Auth: Recebido 401, fazendo logout...')
           logout()
         }
         return Promise.reject(error)

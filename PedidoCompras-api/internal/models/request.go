@@ -60,8 +60,19 @@ const (
 )
 
 // MÉTODOS AUXILIARES EXISTENTES
+
 func (pr *PurchaseRequest) CanBeCompleted() bool {
-	return pr.Status == StatusApproved || pr.Status == StatusPartial
+	// ✅ VALIDAÇÃO MAIS RIGOROSA
+	if pr.Status != StatusApproved && pr.Status != StatusPartial {
+		return false
+	}
+
+	// ✅ VERIFICAÇÃO ADICIONAL - NÃO PERMITIR SE JÁ CONCLUÍDA
+	if pr.Status == StatusCompleted {
+		return false
+	}
+
+	return true
 }
 
 func (pr *PurchaseRequest) CanBeReopened() bool {

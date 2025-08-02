@@ -1,9 +1,10 @@
-// src/components/Navbar.tsx
+// Navbar.tsx
 import React, { useContext, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AuthContext } from '../contexts/AuthContext'
-import { Menu, X, Search, User, LogOut, Shield } from 'lucide-react'
+import { Menu, X, User, LogOut, Shield } from 'lucide-react'
 import NotificationDropdown from './NotificationDropdown';
+import SearchBox from './SearchBox'; // ✅ NOVO COMPONENTE
 import type { CompanySettings } from '../types/settings';
 import settingsApi from '../api/settings'
 
@@ -17,24 +18,49 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
   const navigate = useNavigate()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
+  
+  // ✅ Estados para controle do logo
+  const [logoError, setLogoError] = useState(false);
+  const [logoLoading, setLogoLoading] = useState(false);
 
   useEffect(() => {
     async function loadSettings() {
-      if (user?.role !== 'admin') return
+      // ✅ Carregar sempre, não só para admins (qualquer usuário pode ver o logo)
       try {
+        setLogoLoading(true);
         const response = await settingsApi.getCompanySettings()
         setCompanySettings(response.data)
+        setLogoError(false);
       } catch (err) {
-        console.error(err)
+        console.error('Erro ao carregar configurações da empresa:', err)
+        setLogoError(true);
+      } finally {
+        setLogoLoading(false);
       }
     }
-    loadSettings()
+    
+    // ✅ Carregar configurações para qualquer usuário logado
+    if (user) {
+      loadSettings();
+    }
   }, [user])
 
   const handleLogout = () => {
     logout()
     navigate('/login')
   }
+
+  // ✅ Função para lidar com erro de carregamento do logo
+  const handleLogoError = () => {
+    console.warn('Erro ao carregar logo no navbar');
+    setLogoError(true);
+  };
+
+  // ✅ Gerar URL do logo com timestamp para quebrar cache
+  const getLogoUrl = () => {
+    if (!companySettings?.LogoPath) return null;
+    return `${settingsApi.getCompanyLogoUrl()}?t=${Date.now()}`;
+  };
 
   return (
     <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
@@ -43,56 +69,90 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
         <div className="flex items-center space-x-4">
           <button
             onClick={onToggleSidebar}
-            className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2"
+            style={{
+              '--tw-ring-color': '#679080'
+            } as React.CSSProperties}
+            onFocus={(e) => {
+              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(103, 144, 128, 0.3)'
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.boxShadow = 'none'
+            }}
           >
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           
           <Link to="/" className="flex items-center space-x-3">
-          {companySettings?.LogoPath ? (
-            <img 
-              src={settingsApi.getCompanyLogoUrl()} 
-              alt={companySettings.CompanyName}
-              className="h-8 w-auto"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-          ) : null}
-          <span className="text-xl font-bold text-gray-900">
-            {companySettings?.CompanyName || 'PedidoCompras'}
-          </span>
-        </Link>
+            {/* ✅ Logo melhorado com estados de loading e erro */}
+            {companySettings?.LogoPath && !logoError && !logoLoading && (
+              <img 
+                src={getLogoUrl()!}
+                alt={companySettings.CompanyName}
+                className="h-8 w-auto transition-opacity duration-200"
+                onError={handleLogoError}
+                style={{ 
+                  maxWidth: '120px', // Limitar largura máxima
+                  objectFit: 'contain' 
+                }}
+              />
+            )}
+            
+            {/* ✅ Loading state para logo */}
+            {logoLoading && (
+              <div className="h-8 w-12 bg-gray-200 animate-pulse rounded"></div>
+            )}
+            
+            {/* ✅ Fallback para quando não há logo ou erro */}
+            <span className={`text-xl font-bold text-gray-900 ${
+              companySettings?.LogoPath && !logoError && !logoLoading ? 'ml-2' : ''
+            }`}>
+              {companySettings?.CompanyName || 'PedidoCompras'}
+            </span>
+          </Link>
         </div>
 
-        {/* Center - Search (opcional) */}
+        {/* ✅ Center - Search Funcional */}
         <div className="hidden md:flex flex-1 max-w-lg mx-8">
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            <input
-              type="text"
-              placeholder="Buscar..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+          <SearchBox />
         </div>
 
         {/* Right side - Actions */}
         <div className="flex items-center space-x-4">
           {/* Notifications */}
-          <button className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 relative">
+          <button 
+            className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 relative"
+            onFocus={(e) => {
+              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(103, 144, 128, 0.3)'
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.boxShadow = 'none'
+            }}
+          >
             <NotificationDropdown />
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-              3
-            </span>
           </button>
 
           {/* Admin Panel Quick Access */}
           {user?.role === 'admin' && (
             <Link
               to="/admin/requests"
-              className="p-2 rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-blue-600"
+              className="p-2 rounded-md focus:outline-none focus:ring-2 transition-colors"
               title="Painel Administrativo"
+              style={{
+                color: '#679080'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(103, 144, 128, 0.1)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(103, 144, 128, 0.3)'
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.boxShadow = 'none'
+              }}
             >
               <Shield size={20} />
             </Link>
@@ -102,11 +162,20 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2"
+              onFocus={(e) => {
+                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(103, 144, 128, 0.3)'
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.boxShadow = 'none'
+              }}
             >
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                user?.role === 'admin' ? 'bg-red-500' : 'bg-blue-500'
-              }`}>
+              <div 
+                className="w-8 h-8 rounded-full flex items-center justify-center"
+                style={{
+                  backgroundColor: user?.role === 'admin' ? '#dc2626' : '#679080'
+                }}
+              >
                 {user?.role === 'admin' ? (
                   <Shield size={16} className="text-white" />
                 ) : (
@@ -127,11 +196,13 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, sidebarOpen }) => {
                   <p className="font-medium text-gray-900">{user?.name || 'Usuário'}</p>
                   <p className="text-sm text-gray-500">{user?.email || 'email@exemplo.com'}</p>
                   <div className="flex items-center mt-1">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      user?.role === 'admin' 
-                        ? 'bg-red-100 text-red-800' 
-                        : 'bg-blue-100 text-blue-800'
-                    }`}>
+                    <span 
+                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                      style={{
+                        backgroundColor: user?.role === 'admin' ? '#fef2f2' : 'rgba(103, 144, 128, 0.1)',
+                        color: user?.role === 'admin' ? '#dc2626' : '#679080'
+                      }}
+                    >
                       {user?.role === 'admin' ? (
                         <>
                           <Shield size={12} className="mr-1" />

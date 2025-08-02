@@ -353,22 +353,12 @@ const App: React.FC = () => (
         element={
           <ProtectedRoute>
             <Layout>
-              <ProfilePage />
+              <SettingsPage />
             </Layout>
           </ProtectedRoute>
         }
       />
 
-      <Route
-        path="/settings"
-        element={
-          <AdminRoute>
-            <Layout>
-              <SettingsPage />
-            </Layout>
-          </AdminRoute>
-        }
-      />
 
       <Route
         path="/reports"

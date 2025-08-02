@@ -16,6 +16,9 @@ func Setup(router *gin.Engine, databaseConnection *gorm.DB, appConfig *config.Co
 	// Grupo de rotas v1
 	apiGroup := router.Group("/api/v1")
 	{
+		// ✅ CRÍTICO: ROTA PÚBLICA DO LOGO (DEVE VIR ANTES DAS PROTEGIDAS)
+		apiGroup.GET("/settings/company/logo", handlers.GetCompanyLogo(databaseConnection))
+
 		// Autenticação (aberto)
 		authGroup := apiGroup.Group("/auth")
 		{
@@ -54,7 +57,7 @@ func Setup(router *gin.Engine, databaseConnection *gorm.DB, appConfig *config.Co
 			requestsGroup.PATCH("/:id/review", handlers.ReviewRequest(databaseConnection))
 			requestsGroup.PATCH("/:id/items/:itemId/review", handlers.ReviewRequestItem(databaseConnection))
 
-			// ✅ NOVAS ROTAS PARA PRIORIDADE
+			// Rotas para prioridade
 			requestsGroup.PATCH("/:id/priority", handlers.SetRequestPriority(databaseConnection))
 			requestsGroup.DELETE("/:id/priority", handlers.RemoveRequestPriority(databaseConnection))
 			requestsGroup.POST("/:id/toggle-urgent", handlers.ToggleUrgentPriority(databaseConnection))
@@ -97,7 +100,6 @@ func Setup(router *gin.Engine, databaseConnection *gorm.DB, appConfig *config.Co
 		}
 
 		// Rotas fora de /requests
-
 		apiGroup.PATCH("/budgets/:budgetID", handlers.UpdateBudget(databaseConnection))
 		apiGroup.DELETE("/budgets/:budgetID", handlers.DeleteBudget(databaseConnection))
 
@@ -125,15 +127,21 @@ func Setup(router *gin.Engine, databaseConnection *gorm.DB, appConfig *config.Co
 		{
 			suppliersGroup.GET("", handlers.ListSuppliers(databaseConnection))
 			suppliersGroup.POST("", handlers.CreateSupplier(databaseConnection))
-			suppliersGroup.GET("/:id", handlers.GetSupplier(databaseConnection)) // ✅ ADICIONAR SE NÃO EXISTIR
+			suppliersGroup.GET("/:id", handlers.GetSupplier(databaseConnection))
 			suppliersGroup.PATCH("/:id", handlers.UpdateSupplier(databaseConnection))
 			suppliersGroup.DELETE("/:id", handlers.DeleteSupplier(databaseConnection))
 		}
 
-		// Notificações (protegido)
+		// Notificações com middleware SSE especial
 		apiGroup.GET("/notifications",
-			middleware.AuthMiddleware(appConfig.JWTSecretKey),
+			middleware.SSEAuthMiddleware(appConfig.JWTSecretKey),
 			handlers.NotificationsStream(),
+		)
+
+		// Rota de teste (temporária)
+		apiGroup.GET("/test-notification",
+			middleware.AuthMiddleware(appConfig.JWTSecretKey),
+			handlers.TestNotification(),
 		)
 
 		// Relatórios em Excel
@@ -178,7 +186,7 @@ func Setup(router *gin.Engine, databaseConnection *gorm.DB, appConfig *config.Co
 			profileGroup.PATCH("/password", handlers.ChangePassword(databaseConnection))
 		}
 
-		// Configurações (apenas admin)
+		// ✅ CONFIGURAÇÕES (PROTEGIDAS - EXCETO LOGO GET QUE JÁ ESTÁ ACIMA)
 		settingsGroup := apiGroup.Group("/settings")
 		settingsGroup.Use(middleware.AuthMiddleware(appConfig.JWTSecretKey))
 		{
@@ -186,7 +194,7 @@ func Setup(router *gin.Engine, databaseConnection *gorm.DB, appConfig *config.Co
 			settingsGroup.GET("/company", handlers.GetCompanySettings(databaseConnection))
 			settingsGroup.PUT("/company", handlers.UpdateCompanySettings(databaseConnection))
 			settingsGroup.POST("/company/logo", handlers.UploadCompanyLogo(databaseConnection))
-			settingsGroup.GET("/company/logo", handlers.GetCompanyLogo(databaseConnection))
+			// ⚠️ REMOVIDO: settingsGroup.GET("/company/logo", ...) - JÁ ESTÁ PÚBLICO ACIMA
 
 			// Configurações do sistema
 			settingsGroup.GET("/system", handlers.GetSystemSettings(databaseConnection))
@@ -200,6 +208,5 @@ func Setup(router *gin.Engine, databaseConnection *gorm.DB, appConfig *config.Co
 			reportsGroup.GET("/requests", handlers.GetRequestsReport(databaseConnection))
 			reportsGroup.GET("/requests/export", handlers.ExportRequestsReport(databaseConnection))
 		}
-
 	}
 }

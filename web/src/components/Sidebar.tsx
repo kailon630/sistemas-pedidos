@@ -1,4 +1,3 @@
-// src/components/Sidebar.tsx
 import React, { useContext } from 'react'
 import { NavLink } from 'react-router-dom'
 import { 
@@ -89,7 +88,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
           {/* User Info */}
           <div className="px-3 py-2 bg-gray-50 rounded-lg">
             <div className="flex items-center">
-              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+              <div 
+                className="w-8 h-8 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: '#679080' }}
+              >
                 <Users size={16} className="text-white" />
               </div>
               <div className="ml-3">
@@ -116,15 +118,24 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
                       className={({ isActive }) =>
                         `flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
                           isActive
-                            ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
+                            ? 'border-r-2'
                             : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                         }`
                       }
+                      style={({ isActive }) => isActive ? {
+                        backgroundColor: 'rgba(103, 144, 128, 0.1)',
+                        color: '#679080',
+                        borderRightColor: '#679080'
+                      } : {}}
                     >
                       <Icon size={18} className="mr-3" />
                       {item.label}
                       {item.to === '/admin/requests' && (
-                        <Shield size={14} className="ml-auto text-blue-600" />
+                        <Shield 
+                          size={14} 
+                          className="ml-auto" 
+                          style={{ color: '#679080' }}
+                        />
                       )}
                     </NavLink>
                   )
